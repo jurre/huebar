@@ -81,4 +81,33 @@ struct ModelDecodingTests {
         #expect(response.errors[0].description == "resource not found")
         #expect(response.data.isEmpty)
     }
+
+    @Test func sceneDecoding() throws {
+        let json = """
+        {
+            "id": "abc-123",
+            "metadata": {"name": "Relax"},
+            "group": {"rid": "room-456", "rtype": "room"},
+            "status": {"active": "inactive"}
+        }
+        """.data(using: .utf8)!
+        let scene = try JSONDecoder().decode(HueScene.self, from: json)
+        #expect(scene.id == "abc-123")
+        #expect(scene.name == "Relax")
+        #expect(scene.group.rid == "room-456")
+        #expect(scene.group.rtype == "room")
+    }
+
+    @Test func sceneWithoutStatus() throws {
+        let json = """
+        {
+            "id": "abc-123",
+            "metadata": {"name": "Energize"},
+            "group": {"rid": "zone-789", "rtype": "zone"}
+        }
+        """.data(using: .utf8)!
+        let scene = try JSONDecoder().decode(HueScene.self, from: json)
+        #expect(scene.name == "Energize")
+        #expect(scene.status == nil)
+    }
 }

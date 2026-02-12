@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum HueAPIError: Error, LocalizedError {
     case bridgeError(String)
@@ -22,6 +23,8 @@ final class HueAPIClient {
     var rooms: [Room] = []
     var zones: [Zone] = []
     var groupedLights: [GroupedLight] = []
+    var scenes: [HueScene] = []
+    var activeSceneId: String?
     var isLoading: Bool = false
     var lastError: String?
 
@@ -59,11 +62,13 @@ final class HueAPIClient {
             async let fetchedRooms: [Room] = fetchRooms()
             async let fetchedZones: [Zone] = fetchZones()
             async let fetchedGroupedLights: [GroupedLight] = fetchGroupedLights()
+            async let fetchedScenes: [HueScene] = fetchScenes()
 
-            let (r, z, g) = try await (fetchedRooms, fetchedZones, fetchedGroupedLights)
+            let (r, z, g, s) = try await (fetchedRooms, fetchedZones, fetchedGroupedLights, fetchedScenes)
             rooms = applySavedOrder(r, key: Self.roomOrderKey)
             zones = applySavedOrder(z, key: Self.zoneOrderKey)
             groupedLights = g
+            scenes = s
         } catch {
             lastError = error.localizedDescription
         }
@@ -84,6 +89,11 @@ final class HueAPIClient {
     /// Fetch all grouped lights
     func fetchGroupedLights() async throws -> [GroupedLight] {
         try await fetch(path: "grouped_light")
+    }
+
+    /// Fetch all scenes
+    func fetchScenes() async throws -> [HueScene] {
+        try await fetch(path: "scene")
     }
 
     /// Validate that a resource ID matches the expected Hue API UUID format
@@ -120,10 +130,84 @@ final class HueAPIClient {
         }
     }
 
+    /// Set brightness for a grouped light (0.0–100.0)
+    func setBrightness(groupedLightId: String, brightness: Double) async throws {
+        guard Self.isValidResourceId(groupedLightId) else {
+            throw HueAPIError.invalidResourceId
+        }
+        let clampedBrightness = min(max(brightness, 0.0), 100.0)
+
+        // Optimistic update
+        if let index = groupedLights.firstIndex(where: { $0.id == groupedLightId }) {
+            groupedLights[index] = GroupedLight(
+                id: groupedLightId,
+                on: groupedLights[index].on,
+                dimming: DimmingState(brightness: clampedBrightness)
+            )
+        }
+
+        let request = try makeRequest(
+            path: "grouped_light/\(groupedLightId)",
+            method: "PUT",
+            body: try JSONEncoder().encode(["dimming": DimmingState(brightness: clampedBrightness)])
+        )
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            // Revert on failure
+            groupedLights = try await fetchGroupedLights()
+            throw HueAPIError.invalidResponse
+        }
+    }
+
     /// Look up the GroupedLight for a room or zone
     func groupedLight(for groupId: String?) -> GroupedLight? {
         guard let groupId else { return nil }
         return groupedLights.first(where: { $0.id == groupId })
+    }
+
+    /// Filter scenes belonging to a specific room or zone
+    func scenes(for groupId: String?) -> [HueScene] {
+        guard let groupId else { return [] }
+        return scenes.filter { $0.group.rid == groupId }
+    }
+
+    /// Find the active scene for a room/zone by checking scene status from the API
+    func activeScene(for groupId: String?) -> HueScene? {
+        guard let groupId else { return nil }
+        // First check scenes where the API reports active status
+        if let active = scenes.first(where: {
+            $0.group.rid == groupId && $0.status?.active == "active"
+        }) {
+            return active
+        }
+        // Fall back to our locally tracked active scene
+        if let activeId = activeSceneId {
+            return scenes.first(where: { $0.id == activeId && $0.group.rid == groupId })
+        }
+        return nil
+    }
+
+    /// Get the palette colors for the active scene of a group
+    func activeSceneColors(for groupId: String?) -> [Color] {
+        activeScene(for: groupId)?.paletteColors ?? []
+    }
+
+    /// Recall (activate) a scene
+    func recallScene(id: String) async throws {
+        guard Self.isValidResourceId(id) else {
+            throw HueAPIError.invalidResourceId
+        }
+        activeSceneId = id
+        let body = try JSONEncoder().encode(["recall": ["action": "active"]])
+        let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw HueAPIError.invalidResponse
+        }
+        // Refresh grouped lights to reflect scene's brightness/on state
+        groupedLights = try await fetchGroupedLights()
     }
 
     // MARK: - Ordering

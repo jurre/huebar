@@ -13,6 +13,6 @@ struct OnState: Codable, Sendable {
     let on: Bool
 }
 
-struct DimmingState: Decodable, Sendable {
+struct DimmingState: Codable, Sendable {
     let brightness: Double
 }

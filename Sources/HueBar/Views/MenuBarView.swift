@@ -6,8 +6,40 @@ struct MenuBarView: View {
     var onSignOut: () -> Void
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var selectedRoom: Room?
+    @State private var selectedZone: Zone?
 
     var body: some View {
+        VStack(spacing: 0) {
+            if let room = selectedRoom {
+                RoomDetailView(
+                    apiClient: apiClient,
+                    name: room.name,
+                    groupedLightId: room.groupedLightId,
+                    groupId: room.id,
+                    onBack: { selectedRoom = nil }
+                )
+            } else if let zone = selectedZone {
+                RoomDetailView(
+                    apiClient: apiClient,
+                    name: zone.name,
+                    groupedLightId: zone.groupedLightId,
+                    groupId: zone.id,
+                    onBack: { selectedZone = nil }
+                )
+            } else {
+                roomListView
+            }
+        }
+        .frame(width: 300)
+        .onAppear {
+            Task { await apiClient.fetchAll() }
+        }
+    }
+
+    // MARK: - Room List
+
+    private var roomListView: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -46,14 +78,16 @@ struct MenuBarView: View {
                         sectionHeader("Rooms", icon: "house")
 
                         ForEach(apiClient.rooms) { room in
-                            lightRow(name: room.name, groupedLightId: room.groupedLightId)
-                                .draggable(room.id)
-                                .dropDestination(for: String.self) { droppedIds, _ in
-                                    guard let fromId = droppedIds.first else { return false }
-                                    guard apiClient.rooms.contains(where: { $0.id == fromId }) else { return false }
-                                    apiClient.moveRoom(fromId: fromId, toId: room.id)
-                                    return true
-                                }
+                            LightRowView(apiClient: apiClient, name: room.name, archetype: room.metadata.archetype, groupedLightId: room.groupedLightId, groupId: room.id) {
+                                selectedRoom = room
+                            }
+                            .draggable(room.id)
+                            .dropDestination(for: String.self) { droppedIds, _ in
+                                guard let fromId = droppedIds.first else { return false }
+                                guard apiClient.rooms.contains(where: { $0.id == fromId }) else { return false }
+                                apiClient.moveRoom(fromId: fromId, toId: room.id)
+                                return true
+                            }
                         }
 
                         // Zones
@@ -61,14 +95,16 @@ struct MenuBarView: View {
                             sectionHeader("Zones", icon: "square.grid.2x2")
 
                             ForEach(apiClient.zones) { zone in
-                                lightRow(name: zone.name, groupedLightId: zone.groupedLightId)
-                                    .draggable(zone.id)
-                                    .dropDestination(for: String.self) { droppedIds, _ in
-                                        guard let fromId = droppedIds.first else { return false }
-                                        guard apiClient.zones.contains(where: { $0.id == fromId }) else { return false }
-                                        apiClient.moveZone(fromId: fromId, toId: zone.id)
-                                        return true
-                                    }
+                                LightRowView(apiClient: apiClient, name: zone.name, archetype: zone.metadata.archetype, groupedLightId: zone.groupedLightId, groupId: zone.id) {
+                                    selectedZone = zone
+                                }
+                                .draggable(zone.id)
+                                .dropDestination(for: String.self) { droppedIds, _ in
+                                    guard let fromId = droppedIds.first else { return false }
+                                    guard apiClient.zones.contains(where: { $0.id == fromId }) else { return false }
+                                    apiClient.moveZone(fromId: fromId, toId: zone.id)
+                                    return true
+                                }
                             }
                         }
                     }
@@ -106,10 +142,6 @@ struct MenuBarView: View {
             }
             .padding(.vertical, 8)
         }
-        .frame(width: 300)
-        .onAppear {
-            Task { await apiClient.fetchAll() }
-        }
     }
 
     // MARK: - Subviews
@@ -121,28 +153,312 @@ struct MenuBarView: View {
             .padding(.horizontal)
             .padding(.top, 4)
     }
+}
 
-    private func lightRow(name: String, groupedLightId: String?) -> some View {
-        HStack {
-            Text(name)
-            Spacer()
-            Toggle("", isOn: toggleBinding(for: groupedLightId))
-                .toggleStyle(.switch)
-                .labelsHidden()
-                .disabled(groupedLightId == nil)
-        }
-        .padding(.horizontal)
+// MARK: - LightRowView (main list row with brightness slider)
+
+private struct LightRowView: View {
+    @Bindable var apiClient: HueAPIClient
+    let name: String
+    let archetype: String?
+    let groupedLightId: String?
+    let groupId: String
+    let onTap: () -> Void
+
+    @State private var sliderBrightness: Double = 0
+    @State private var debounceTask: Task<Void, Never>?
+
+    private var groupedLight: GroupedLight? {
+        apiClient.groupedLight(for: groupedLightId)
     }
 
-    // MARK: - Toggle Binding
+    private var isOn: Bool {
+        groupedLight?.isOn ?? false
+    }
 
-    private func toggleBinding(for groupedLightId: String?) -> Binding<Bool> {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Icon + Name + Toggle row
+            HStack(spacing: 8) {
+                Image(systemName: ArchetypeIcon.systemName(for: archetype))
+                    .font(.title2)
+                    .foregroundStyle(isOn ? .white : .secondary)
+                    .frame(width: 28)
+
+                Button(action: onTap) {
+                    HStack {
+                        Text(name)
+                            .fontWeight(.medium)
+                            .foregroundStyle(isOn ? .white : .primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(isOn ? AnyShapeStyle(.white.opacity(0.6)) : AnyShapeStyle(.tertiary))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Toggle("", isOn: toggleBinding)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .disabled(groupedLightId == nil)
+            }
+
+            // Brightness slider (visible when on)
+            if isOn, groupedLightId != nil {
+                HStack(spacing: 4) {
+                    Image(systemName: "sun.min")
+                        .font(.caption2)
+                        .foregroundStyle(isOn ? .white.opacity(0.6) : .secondary)
+                    Slider(value: $sliderBrightness, in: 1...100)
+                        .controlSize(.small)
+                        .tint(.white.opacity(0.8))
+                    Image(systemName: "sun.max.fill")
+                        .font(.caption2)
+                        .foregroundStyle(isOn ? .white.opacity(0.6) : .secondary)
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(cardBackground)
+        )
+        .padding(.horizontal)
+        .onAppear {
+            sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
+        }
+        .onChange(of: groupedLight?.brightness) { _, newValue in
+            if let newValue {
+                sliderBrightness = max(newValue, 1)
+            }
+        }
+        .onChange(of: sliderBrightness) { _, newValue in
+            guard let id = groupedLightId else { return }
+            debounceTask?.cancel()
+            debounceTask = Task {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled else { return }
+                try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
+            }
+        }
+    }
+
+    private var cardBackground: some ShapeStyle {
+        let colors = apiClient.activeSceneColors(for: groupId)
+        if isOn && colors.count >= 2 {
+            return AnyShapeStyle(
+                LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+            )
+        } else if isOn, let first = colors.first {
+            return AnyShapeStyle(
+                LinearGradient(colors: [first, first.opacity(0.7)], startPoint: .leading, endPoint: .trailing)
+            )
+        } else if isOn {
+            return AnyShapeStyle(Color.gray.opacity(0.3))
+        } else {
+            return AnyShapeStyle(Color.gray.opacity(0.15))
+        }
+    }
+
+    private var toggleBinding: Binding<Bool> {
         Binding(
-            get: { apiClient.groupedLight(for: groupedLightId)?.isOn ?? false },
+            get: { isOn },
             set: { newValue in
                 guard let id = groupedLightId else { return }
                 Task { try? await apiClient.toggleGroupedLight(id: id, on: newValue) }
             }
         )
+    }
+}
+
+// MARK: - RoomDetailView (scene selection grid)
+
+private struct RoomDetailView: View {
+    @Bindable var apiClient: HueAPIClient
+    let name: String
+    let groupedLightId: String?
+    let groupId: String
+    let onBack: () -> Void
+
+    @State private var sliderBrightness: Double = 0
+    @State private var debounceTask: Task<Void, Never>?
+
+    private var groupedLight: GroupedLight? {
+        apiClient.groupedLight(for: groupedLightId)
+    }
+
+    private var isOn: Bool {
+        groupedLight?.isOn ?? false
+    }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with back button and toggle
+            HStack {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.body.weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+
+                Text(name)
+                    .font(.headline)
+
+                Spacer()
+
+                Toggle("", isOn: toggleBinding)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .disabled(groupedLightId == nil)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+
+            // Brightness slider
+            if isOn, groupedLightId != nil {
+                HStack(spacing: 6) {
+                    Image(systemName: "sun.min")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Slider(value: $sliderBrightness, in: 1...100)
+                        .controlSize(.small)
+                    Image(systemName: "sun.max.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
+
+            Divider()
+
+            // Scenes grid
+            let groupScenes = apiClient.scenes(for: groupId)
+            if groupScenes.isEmpty {
+                Spacer()
+                Text("No scenes")
+                    .foregroundStyle(.secondary)
+                Spacer()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("MY SCENES")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+
+                        LazyVGrid(columns: columns, spacing: 8) {
+                            ForEach(groupScenes) { scene in
+                                SceneCard(
+                                    scene: scene,
+                                    isActive: apiClient.activeSceneId == scene.id
+                                ) {
+                                    Task { try? await apiClient.recallScene(id: scene.id) }
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+            }
+        }
+        .onAppear {
+            sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
+        }
+        .onChange(of: groupedLight?.brightness) { _, newValue in
+            if let newValue {
+                sliderBrightness = max(newValue, 1)
+            }
+        }
+        .onChange(of: sliderBrightness) { _, newValue in
+            guard let id = groupedLightId else { return }
+            debounceTask?.cancel()
+            debounceTask = Task {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled else { return }
+                try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
+            }
+        }
+    }
+
+    private var toggleBinding: Binding<Bool> {
+        Binding(
+            get: { isOn },
+            set: { newValue in
+                guard let id = groupedLightId else { return }
+                Task { try? await apiClient.toggleGroupedLight(id: id, on: newValue) }
+            }
+        )
+    }
+}
+
+// MARK: - SceneCard
+
+private struct SceneCard: View {
+    let scene: HueScene
+    let isActive: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 6) {
+                Spacer()
+                Text(scene.name)
+                    .font(.caption2.weight(.medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .padding(6)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(sceneGradient)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(isActive ? Color.white : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var sceneGradient: some ShapeStyle {
+        let colors = scene.paletteColors
+        if colors.count >= 2 {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: colors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        } else if let first = colors.first {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [first, first.opacity(0.6)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        } else {
+            // Fallback warm gradient for scenes without palette data
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [.orange.opacity(0.6), .purple.opacity(0.5)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        }
     }
 }

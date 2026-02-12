@@ -206,4 +206,35 @@ struct HueAPIClientTests {
         #expect(client.groupedLight(for: "unknown") == nil)
         #expect(client.groupedLight(for: nil) == nil)
     }
+
+    @Test func scenesFilteredByGroup() {
+        let client = makeClient()
+        client.scenes = [
+            HueScene(id: "s1", metadata: HueSceneMetadata(name: "Relax"), group: ResourceLink(rid: "room-1", rtype: "room"), status: nil, palette: nil),
+            HueScene(id: "s2", metadata: HueSceneMetadata(name: "Energize"), group: ResourceLink(rid: "room-1", rtype: "room"), status: nil, palette: nil),
+            HueScene(id: "s3", metadata: HueSceneMetadata(name: "Nightlight"), group: ResourceLink(rid: "room-2", rtype: "room"), status: nil, palette: nil),
+        ]
+
+        let room1Scenes = client.scenes(for: "room-1")
+        #expect(room1Scenes.count == 2)
+        #expect(room1Scenes[0].name == "Relax")
+        #expect(room1Scenes[1].name == "Energize")
+
+        let room2Scenes = client.scenes(for: "room-2")
+        #expect(room2Scenes.count == 1)
+        #expect(room2Scenes[0].name == "Nightlight")
+
+        let noScenes = client.scenes(for: "unknown")
+        #expect(noScenes.isEmpty)
+
+        let nilScenes = client.scenes(for: nil)
+        #expect(nilScenes.isEmpty)
+    }
+
+    @Test func setBrightnessInvalidIdRejected() async {
+        let client = makeClient()
+        await #expect(throws: HueAPIError.self) {
+            try await client.setBrightness(groupedLightId: "../../../evil", brightness: 50)
+        }
+    }
 }
