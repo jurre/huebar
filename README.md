@@ -2,7 +2,7 @@
 
 A native macOS menubar app for controlling your Philips Hue lights. See your rooms and zones at a glance and toggle them on and off — right from the menu bar.
 
-<img width="300" alt="HueBar screenshot" src="https://github.com/user-attachments/assets/placeholder.png">
+<img width="300" alt="HueBar screenshot" src="https://github.com/user-attachments/assets/3bc9646a-a02e-44a6-92db-e98d3a93d1dc">
 
 ## Features
 
