@@ -6,6 +6,13 @@ BUNDLE_ID="com.jurre.huebar"
 APP_DIR="$APP_NAME.app"
 INSTALL_DIR="/Applications"
 
+# Quit any running instance first
+if pgrep -x "$APP_NAME" > /dev/null 2>&1; then
+    echo "Stopping running $APP_NAME..."
+    pkill -x "$APP_NAME" || true
+    sleep 1
+fi
+
 echo "Building release binary..."
 swift build -c release --quiet
 
