@@ -1,8 +1,11 @@
 import SwiftUI
+import ServiceManagement
 
 struct MenuBarView: View {
     @Bindable var apiClient: HueAPIClient
     var onSignOut: () -> Void
+
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         VStack(spacing: 0) {
@@ -63,6 +66,23 @@ struct MenuBarView: View {
 
             // Footer
             VStack(spacing: 4) {
+                Toggle("Launch at Login", isOn: $launchAtLogin)
+                    .toggleStyle(.switch)
+                    .onChange(of: launchAtLogin) { _, enabled in
+                        do {
+                            if enabled {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                        }
+                    }
+                    .padding(.horizontal)
+
+                Divider()
+
                 Button("Sign Out", action: onSignOut)
                     .buttonStyle(.borderless)
                 Button("Quit HueBar") {

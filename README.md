@@ -18,17 +18,19 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
 
 ## Installation
 
-### Build from source
+### Install as app (recommended)
 
 ```bash
 git clone https://github.com/jurre/huebar.git
 cd huebar
-swift build -c release
+./scripts/install.sh
 ```
 
-The built binary will be at `.build/release/HueBar`. You can copy it to `/Applications` or wherever you like.
+This builds a release binary, wraps it in a `.app` bundle, code-signs it, and copies it to `/Applications`. You can then launch HueBar from Spotlight or Finder.
 
-### Run directly
+To start automatically on login, toggle **"Launch at Login"** in the HueBar menu.
+
+### Run from source
 
 ```bash
 swift run
