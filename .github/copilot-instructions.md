@@ -8,7 +8,7 @@ HueBar is a native macOS menubar app (SwiftUI, macOS 15+) for controlling Philip
 - **UI**: SwiftUI (`MenuBarExtra`, `@Observable`)
 - **Networking**: URLSession with custom TLS delegate for Hue Bridge self-signed certs
 - **Discovery**: NWBrowser (mDNS) + cloud fallback (discovery.meethue.com)
-- **Storage**: macOS Keychain (app key), UserDefaults (bridge IP)
+- **Storage**: Credentials file in `~/Library/Application Support/HueBar/` (600 permissions)
 - **Dependencies**: None external — Apple frameworks only
 
 ## Key Patterns

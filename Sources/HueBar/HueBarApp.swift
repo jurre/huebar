@@ -6,8 +6,6 @@ struct HueBarApp: App {
     @State private var authService = HueAuthService()
     @State private var apiClient: HueAPIClient?
 
-    private static let bridgeIPKey = "huebar.bridgeIP"
-
     var body: some Scene {
         MenuBarExtra("HueBar", systemImage: menuBarIcon) {
             mainView
@@ -17,7 +15,6 @@ struct HueBarApp: App {
                     if isAuthenticated, apiClient == nil,
                        let key = authService.applicationKey,
                        let ip = authService.bridgeIP {
-                        UserDefaults.standard.set(ip, forKey: Self.bridgeIPKey)
                         apiClient = HueAPIClient(bridgeIP: ip, applicationKey: key)
                     }
                 }
@@ -40,8 +37,8 @@ struct HueBarApp: App {
 
     private func restoreSession() {
         guard apiClient == nil,
-              let key = KeychainService.load(),
-              let ip = UserDefaults.standard.string(forKey: Self.bridgeIPKey)
+              let key = authService.applicationKey,
+              let ip = authService.bridgeIP
         else { return }
         apiClient = HueAPIClient(bridgeIP: ip, applicationKey: key)
     }
@@ -49,6 +46,5 @@ struct HueBarApp: App {
     private func signOut() {
         authService.signOut()
         apiClient = nil
-        UserDefaults.standard.removeObject(forKey: Self.bridgeIPKey)
     }
 }

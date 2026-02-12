@@ -3,35 +3,39 @@ import Testing
 @testable import HueBar
 
 @Suite(.serialized)
-struct KeychainServiceTests {
+struct CredentialStoreTests {
     @Test func saveAndLoad() throws {
-        defer { KeychainService.delete() }
-        try KeychainService.save(key: "test-key-123")
-        #expect(KeychainService.load() == "test-key-123")
+        defer { CredentialStore.delete() }
+        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "test-key-123"))
+        let loaded = CredentialStore.load()
+        #expect(loaded?.bridgeIP == "192.168.1.10")
+        #expect(loaded?.applicationKey == "test-key-123")
     }
 
     @Test func loadWhenEmpty() {
-        defer { KeychainService.delete() }
-        KeychainService.delete()
-        #expect(KeychainService.load() == nil)
+        defer { CredentialStore.delete() }
+        CredentialStore.delete()
+        #expect(CredentialStore.load() == nil)
     }
 
     @Test func delete() throws {
-        defer { KeychainService.delete() }
-        try KeychainService.save(key: "test-key-to-delete")
-        KeychainService.delete()
-        #expect(KeychainService.load() == nil)
+        defer { CredentialStore.delete() }
+        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "key"))
+        CredentialStore.delete()
+        #expect(CredentialStore.load() == nil)
     }
 
     @Test func overwrite() throws {
-        defer { KeychainService.delete() }
-        try KeychainService.save(key: "first")
-        try KeychainService.save(key: "second")
-        #expect(KeychainService.load() == "second")
+        defer { CredentialStore.delete() }
+        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "first"))
+        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.20", applicationKey: "second"))
+        let loaded = CredentialStore.load()
+        #expect(loaded?.bridgeIP == "192.168.1.20")
+        #expect(loaded?.applicationKey == "second")
     }
 
     @Test func deleteWhenNothingStored() {
-        KeychainService.delete()
-        KeychainService.delete()
+        CredentialStore.delete()
+        CredentialStore.delete()
     }
 }

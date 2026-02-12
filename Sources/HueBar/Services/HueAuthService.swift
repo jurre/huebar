@@ -18,8 +18,9 @@ final class HueAuthService {
     private var pollingTask: Task<Void, Never>?
 
     init() {
-        if let key = KeychainService.load() {
-            authState = .authenticated(applicationKey: key)
+        if let creds = CredentialStore.load() {
+            bridgeIP = creds.bridgeIP
+            authState = .authenticated(applicationKey: creds.applicationKey)
         }
     }
 
@@ -60,7 +61,10 @@ final class HueAuthService {
                     )
 
                     if let success = responses.first?.success {
-                        try KeychainService.save(key: success.username)
+                        try CredentialStore.save(credentials: .init(
+                            bridgeIP: bridgeIP,
+                            applicationKey: success.username
+                        ))
                         authState = .authenticated(applicationKey: success.username)
                         return
                     }
@@ -95,7 +99,7 @@ final class HueAuthService {
     func signOut() {
         pollingTask?.cancel()
         pollingTask = nil
-        KeychainService.delete()
+        CredentialStore.delete()
         bridgeIP = nil
         authState = .notAuthenticated
     }

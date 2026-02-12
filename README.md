@@ -48,7 +48,6 @@ HueBar uses the [Hue CLIP API v2](https://developers.meethue.com/develop/hue-api
 - **SwiftUI** — `MenuBarExtra` with `.window` style for the popover UI
 - **Network** — `NWBrowser` for mDNS bridge discovery
 - **Foundation** — `URLSession` for HTTPS communication
-- **Security** — Keychain storage for the application key
 
 ```
 Sources/HueBar/
@@ -64,7 +63,7 @@ Sources/HueBar/
 │   ├── HueBridgeDiscovery.swift # mDNS + cloud bridge discovery
 │   ├── HueAPIClient.swift       # CLIP v2 API client
 │   ├── HueAuthService.swift     # Link-button authentication
-│   └── KeychainService.swift    # Keychain storage
+│   └── CredentialStore.swift    # Credential storage (~/.../Application Support)
 └── Utilities/
     └── TrustDelegate.swift      # Self-signed cert handling
 ```
