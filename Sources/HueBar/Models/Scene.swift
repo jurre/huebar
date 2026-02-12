@@ -61,14 +61,11 @@ struct CIEXYColor: Decodable, Sendable {
     let y: Double
 
     /// Convert CIE 1931 xy + brightness to sRGB SwiftUI Color.
-    /// Always renders at full brightness for vivid card previews,
-    /// then softens by blending toward white for a pastel look.
+    /// Produces warm, muted tones suitable for dark-mode card backgrounds.
     func swiftUIColor(brightness: Double? = nil) -> Color {
-        // Always use high brightness so card colors are vivid, not muddy
-        let bri = 0.85
-        // CIE XY to XYZ (Y = brightness)
+        // CIE XY to XYZ (Y = 1.0 for full-range hue extraction)
         let z = 1.0 - x - y
-        let yVal = bri
+        let yVal = 1.0
         let xVal = (yVal / max(y, 0.0001)) * x
         let zVal = (yVal / max(y, 0.0001)) * z
 
@@ -89,16 +86,41 @@ struct CIEXYColor: Decodable, Sendable {
         b = gammaCorrect(b)
 
         // Normalize if any channel exceeds 1.0
-        let maxChannel = max(r, g, b, 1.0)
-        r /= maxChannel; g /= maxChannel; b /= maxChannel
+        let maxC = max(r, g, b, 1.0)
+        r /= maxC; g /= maxC; b /= maxC
 
-        // Blend toward white for a softer pastel look (30% white mix)
-        let mix = 0.3
-        r = r + (1.0 - r) * mix
-        g = g + (1.0 - g) * mix
-        b = b + (1.0 - b) * mix
+        // Convert RGB → HSB for predictable saturation/brightness control
+        let rgbMax = max(r, g, b)
+        let rgbMin = min(r, g, b)
+        let delta = rgbMax - rgbMin
 
-        return Color(red: r, green: g, blue: b)
+        var hue = 0.0
+        if delta > 0 {
+            if rgbMax == r {
+                hue = (g - b) / delta
+                if hue < 0 { hue += 6 }
+            } else if rgbMax == g {
+                hue = (b - r) / delta + 2
+            } else {
+                hue = (r - g) / delta + 4
+            }
+            hue /= 6
+        }
+
+        let sat = rgbMax > 0 ? delta / rgbMax : 0
+
+        // Warm-shift: pull all hues toward orange (0.06) via shortest
+        // path on the hue circle. Produces the warm brown/amber tones
+        // seen in the iOS Hue app.
+        let warmTarget = 0.06
+        var hueDiff = warmTarget - hue
+        if hueDiff > 0.5 { hueDiff -= 1.0 }
+        if hueDiff < -0.5 { hueDiff += 1.0 }
+        var warmHue = hue + hueDiff * 0.55
+        if warmHue < 0 { warmHue += 1 }
+        if warmHue > 1 { warmHue -= 1 }
+
+        return Color(hue: warmHue, saturation: min(sat, 0.45), brightness: 0.38)
     }
 
     /// Convert mirek color temperature to an approximate color.

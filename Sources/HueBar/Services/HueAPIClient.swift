@@ -175,7 +175,7 @@ final class HueAPIClient {
     /// Find the active scene for a room/zone by checking scene status from the API
     func activeScene(for groupId: String?) -> HueScene? {
         guard let groupId else { return nil }
-        // First check scenes where the API reports active status
+        // Check scenes where the API reports active status
         if let active = scenes.first(where: {
             $0.group.rid == groupId && $0.status?.active == "active"
         }) {
@@ -188,9 +188,20 @@ final class HueAPIClient {
         return nil
     }
 
-    /// Get the palette colors for the active scene of a group
+    /// Get the palette colors for display on a room/zone card.
+    /// Prefers the active scene, falls back to the first scene with palette colors.
     func activeSceneColors(for groupId: String?) -> [Color] {
-        activeScene(for: groupId)?.paletteColors ?? []
+        guard let groupId else { return [] }
+        // Use active scene if we know it
+        if let active = activeScene(for: groupId), !active.paletteColors.isEmpty {
+            return active.paletteColors
+        }
+        // Fall back: use the first scene for this group that has palette colors
+        let groupScenes = scenes.filter { $0.group.rid == groupId }
+        if let withPalette = groupScenes.first(where: { !$0.paletteColors.isEmpty }) {
+            return withPalette.paletteColors
+        }
+        return []
     }
 
     /// Recall (activate) a scene

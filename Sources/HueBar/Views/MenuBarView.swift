@@ -17,21 +17,26 @@ struct MenuBarView: View {
                     name: room.name,
                     groupedLightId: room.groupedLightId,
                     groupId: room.id,
-                    onBack: { selectedRoom = nil }
+                    onBack: { withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = nil } }
                 )
+                .transition(.move(edge: .trailing))
             } else if let zone = selectedZone {
                 RoomDetailView(
                     apiClient: apiClient,
                     name: zone.name,
                     groupedLightId: zone.groupedLightId,
                     groupId: zone.id,
-                    onBack: { selectedZone = nil }
+                    onBack: { withAnimation(.easeInOut(duration: 0.25)) { selectedZone = nil } }
                 )
+                .transition(.move(edge: .trailing))
             } else {
                 roomListView
+                    .transition(.move(edge: .leading))
             }
         }
-        .frame(width: 300)
+        .frame(width: 300, height: 450)
+        .clipped()
+        .preferredColorScheme(.dark)
         .onAppear {
             Task { await apiClient.fetchAll() }
         }
@@ -79,7 +84,7 @@ struct MenuBarView: View {
 
                         ForEach(apiClient.rooms) { room in
                             LightRowView(apiClient: apiClient, name: room.name, archetype: room.metadata.archetype, groupedLightId: room.groupedLightId, groupId: room.id) {
-                                selectedRoom = room
+                                withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = room }
                             }
                             .draggable(room.id)
                             .dropDestination(for: String.self) { droppedIds, _ in
@@ -96,7 +101,7 @@ struct MenuBarView: View {
 
                             ForEach(apiClient.zones) { zone in
                                 LightRowView(apiClient: apiClient, name: zone.name, archetype: zone.metadata.archetype, groupedLightId: zone.groupedLightId, groupId: zone.id) {
-                                    selectedZone = zone
+                                    withAnimation(.easeInOut(duration: 0.25)) { selectedZone = zone }
                                 }
                                 .draggable(zone.id)
                                 .dropDestination(for: String.self) { droppedIds, _ in
@@ -185,19 +190,16 @@ private struct LightRowView: View {
                     .foregroundStyle(isOn ? .white : .secondary)
                     .frame(width: 28)
 
-                Button(action: onTap) {
-                    HStack {
-                        Text(name)
-                            .fontWeight(.medium)
-                            .foregroundStyle(isOn ? .white : .primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(isOn ? AnyShapeStyle(.white.opacity(0.6)) : AnyShapeStyle(.tertiary))
-                    }
-                    .contentShape(Rectangle())
+                HStack {
+                    Text(name)
+                        .fontWeight(.medium)
+                        .foregroundStyle(isOn ? .white : .primary)
+                        .shadow(color: isOn ? .black.opacity(0.3) : .clear, radius: 2, y: 1)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(isOn ? AnyShapeStyle(.white.opacity(0.6)) : AnyShapeStyle(.tertiary))
                 }
-                .buttonStyle(.plain)
 
                 Toggle("", isOn: toggleBinding)
                     .toggleStyle(.switch)
@@ -205,26 +207,27 @@ private struct LightRowView: View {
                     .disabled(groupedLightId == nil)
             }
 
-            // Brightness slider (visible when on)
-            if isOn, groupedLightId != nil {
-                HStack(spacing: 4) {
-                    Image(systemName: "sun.min")
-                        .font(.caption2)
-                        .foregroundStyle(isOn ? .white.opacity(0.6) : .secondary)
-                    Slider(value: $sliderBrightness, in: 1...100)
-                        .controlSize(.small)
-                        .tint(.white.opacity(0.8))
-                    Image(systemName: "sun.max.fill")
-                        .font(.caption2)
-                        .foregroundStyle(isOn ? .white.opacity(0.6) : .secondary)
-                }
+            // Brightness slider (always visible for consistent card height)
+            HStack(spacing: 4) {
+                Image(systemName: "sun.min")
+                    .font(.caption2)
+                    .foregroundStyle(isOn ? .white.opacity(0.6) : .white.opacity(0.2))
+                Slider(value: $sliderBrightness, in: 1...100)
+                    .controlSize(.small)
+                    .tint(isOn ? .white.opacity(0.8) : .white.opacity(0.15))
+                    .disabled(!isOn)
+                Image(systemName: "sun.max.fill")
+                    .font(.caption2)
+                    .foregroundStyle(isOn ? .white.opacity(0.6) : .white.opacity(0.2))
             }
         }
-        .padding(12)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 14)
                 .fill(cardBackground)
         )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
         .padding(.horizontal)
         .onAppear {
             sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
@@ -249,16 +252,16 @@ private struct LightRowView: View {
         let colors = apiClient.activeSceneColors(for: groupId)
         if isOn && colors.count >= 2 {
             return AnyShapeStyle(
-                LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+                LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
             )
         } else if isOn, let first = colors.first {
             return AnyShapeStyle(
-                LinearGradient(colors: [first, first.opacity(0.7)], startPoint: .leading, endPoint: .trailing)
+                LinearGradient(colors: [first, first.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
             )
         } else if isOn {
-            return AnyShapeStyle(Color.gray.opacity(0.3))
+            return AnyShapeStyle(Color.white.opacity(0.15))
         } else {
-            return AnyShapeStyle(Color.gray.opacity(0.15))
+            return AnyShapeStyle(Color.white.opacity(0.08))
         }
     }
 
@@ -370,6 +373,7 @@ private struct RoomDetailView: View {
                 }
             }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
             sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
         }
