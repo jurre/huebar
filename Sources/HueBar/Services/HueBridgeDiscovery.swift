@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import SwiftUI
+import os
 
 struct DiscoveredBridge: Identifiable, Hashable {
     let id: String
@@ -11,23 +12,41 @@ struct DiscoveredBridge: Identifiable, Hashable {
 @Observable
 @MainActor
 final class HueBridgeDiscovery {
+    private static let logger = Logger(subsystem: "com.huebar", category: "discovery")
+
     var discoveredBridges: [DiscoveredBridge] = []
     var isSearching: Bool = false
     var manualIP: String = ""
+    var discoveryError: String?
 
     private var browser: NWBrowser?
     private var stopTask: Task<Void, Never>?
+    private var cloudDiscoveryTask: Task<Void, Never>?
+    private var pendingResolutions: Int = 0
 
     func startDiscovery() {
+        Self.logger.info("Starting bridge discovery")
         discoveredBridges = []
+        discoveryError = nil
         isSearching = true
 
         // Try both mDNS and cloud discovery in parallel
         startMDNSDiscovery()
-        Task { await cloudDiscover() }
+        cloudDiscoveryTask = Task { await cloudDiscover() }
 
         stopTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(10))
+            try? await Task.sleep(for: .seconds(30))
+            guard !Task.isCancelled else { return }
+            // If resolutions are still in-flight and no bridges found, wait longer
+            if let self, self.pendingResolutions > 0, self.discoveredBridges.isEmpty {
+                for _ in 0..<10 {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard !Task.isCancelled else { return }
+                    if self.pendingResolutions <= 0 || !self.discoveredBridges.isEmpty {
+                        break
+                    }
+                }
+            }
             guard !Task.isCancelled else { return }
             self?.stopDiscovery()
         }
@@ -47,8 +66,15 @@ final class HueBridgeDiscovery {
             Task { @MainActor in
                 guard let self else { return }
                 switch state {
-                case .failed:
+                case .ready:
+                    Self.logger.debug("mDNS browser state: ready")
+                case .failed(let error):
+                    Self.logger.warning("mDNS browser failed: \(error.localizedDescription)")
                     self.stopDiscovery()
+                case .waiting(let error):
+                    Self.logger.debug("mDNS browser waiting: \(error.localizedDescription)")
+                case .cancelled:
+                    Self.logger.debug("mDNS browser cancelled")
                 default:
                     break
                 }
@@ -68,34 +94,86 @@ final class HueBridgeDiscovery {
     }
 
     /// Fallback: discover bridges via Philips' cloud endpoint.
-    /// Works even when mDNS can't cross wired/WiFi boundary.
+    /// Retries up to 3 times with exponential backoff (2s, 4s, 8s).
     private func cloudDiscover() async {
         guard let url = URL(string: "https://discovery.meethue.com") else { return }
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return }
-            let bridges = try JSONDecoder().decode([CloudDiscoveryResult].self, from: data)
-            for bridge in bridges {
-                let discovered = DiscoveredBridge(
-                    id: bridge.id,
-                    ip: bridge.internalipaddress,
-                    name: "Hue Bridge (\(bridge.internalipaddress))"
-                )
-                if !discoveredBridges.contains(where: { $0.ip == bridge.internalipaddress }) {
-                    discoveredBridges.append(discovered)
+        let maxRetries = 3
+        let baseDelay: UInt64 = 2
+
+        for attempt in 0...maxRetries {
+            guard !Task.isCancelled else { return }
+
+            if attempt > 0 {
+                Self.logger.info("Cloud discovery retry \(attempt + 1)/\(maxRetries + 1)")
+            }
+
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard let httpResponse = response as? HTTPURLResponse else { return }
+                Self.logger.info("Cloud discovery status: \(httpResponse.statusCode)")
+
+                if httpResponse.statusCode == 429 {
+                    Self.logger.warning("Cloud discovery rate limited (429)")
+                    let retryAfter = retryAfterDelay(from: httpResponse, fallback: baseDelay << attempt)
+                    discoveryError = "Cloud service rate-limited, retrying… (\(attempt + 1)/\(maxRetries + 1))"
+                    if attempt < maxRetries {
+                        try await Task.sleep(for: .seconds(retryAfter))
+                        continue
+                    }
+                    discoveryError = "Cloud service rate-limited after \(maxRetries + 1) attempts"
+                    return
+                }
+
+                guard httpResponse.statusCode == 200 else {
+                    discoveryError = "Cloud discovery unavailable (HTTP \(httpResponse.statusCode))"
+                    return
+                }
+
+                let bridges = try JSONDecoder().decode([CloudDiscoveryResult].self, from: data)
+                for bridge in bridges {
+                    let discovered = DiscoveredBridge(
+                        id: bridge.id,
+                        ip: bridge.internalipaddress,
+                        name: "Hue Bridge (\(bridge.internalipaddress))"
+                    )
+                    if !discoveredBridges.contains(where: { $0.ip == bridge.internalipaddress }) {
+                        discoveredBridges.append(discovered)
+                    }
+                }
+                if !bridges.isEmpty { discoveryError = nil }
+                return
+            } catch is CancellationError {
+                return
+            } catch {
+                Self.logger.error("Cloud discovery failed: \(error.localizedDescription)")
+                if attempt < maxRetries {
+                    discoveryError = "Cloud discovery failed, retrying… (\(attempt + 1)/\(maxRetries + 1))"
+                    try? await Task.sleep(for: .seconds(baseDelay << attempt))
+                } else {
+                    discoveryError = "Cloud discovery failed: \(error.localizedDescription)"
                 }
             }
-        } catch {
-            // Cloud discovery failed — mDNS or manual entry still available
         }
     }
 
+    /// Extracts Retry-After header delay (capped at 30s), or returns the fallback.
+    private nonisolated func retryAfterDelay(from response: HTTPURLResponse, fallback: UInt64) -> UInt64 {
+        if let value = response.value(forHTTPHeaderField: "Retry-After"),
+           let seconds = UInt64(value) {
+            return min(seconds, 30)
+        }
+        return min(fallback, 30)
+    }
+
     func stopDiscovery() {
+        Self.logger.info("Stopping discovery — found \(self.discoveredBridges.count) bridge(s)")
         stopTask?.cancel()
         stopTask = nil
+        cloudDiscoveryTask?.cancel()
+        cloudDiscoveryTask = nil
         browser?.cancel()
         browser = nil
+        pendingResolutions = 0
         isSearching = false
     }
 
@@ -109,6 +187,20 @@ final class HueBridgeDiscovery {
             discoveredBridges.append(bridge)
         }
         return bridge
+    }
+
+    /// Pre-populate a bridge from the last known IP (survives credential deletion).
+    func addCachedBridge() {
+        guard let ip = CredentialStore.loadLastBridgeIP(),
+              IPValidation.isValid(ip) else { return }
+        let bridge = DiscoveredBridge(
+            id: "cached-\(ip)",
+            ip: ip,
+            name: "Hue Bridge (cached)"
+        )
+        if !discoveredBridges.contains(where: { $0.ip == ip }) {
+            discoveredBridges.append(bridge)
+        }
     }
 
     // MARK: - Private
@@ -126,24 +218,30 @@ final class HueBridgeDiscovery {
 
         guard !discoveredBridges.contains(where: { $0.id == bridgeID }) else { return }
 
+        Self.logger.info("Bridge found via mDNS: \(bridgeID)")
         resolveEndpoint(result.endpoint, bridgeID: bridgeID, name: name)
     }
 
     private func resolveEndpoint(_ endpoint: NWEndpoint, bridgeID: String, name: String) {
+        pendingResolutions += 1
         let connection = NWConnection(to: endpoint, using: .tcp)
         connection.stateUpdateHandler = { [weak self] state in
             Task { @MainActor in
                 guard let self else { return }
                 switch state {
                 case .ready:
+                    self.pendingResolutions -= 1
                     if let ip = self.extractIP(from: connection) {
+                        Self.logger.info("Resolved \(bridgeID) to \(ip)")
                         let bridge = DiscoveredBridge(id: bridgeID, ip: ip, name: name)
                         if !self.discoveredBridges.contains(where: { $0.id == bridgeID }) {
                             self.discoveredBridges.append(bridge)
                         }
                     }
                     connection.cancel()
-                case .failed:
+                case .failed(let error):
+                    self.pendingResolutions -= 1
+                    Self.logger.warning("Failed to resolve \(bridgeID): \(error.localizedDescription)")
                     connection.cancel()
                 default:
                     break

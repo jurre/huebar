@@ -38,6 +38,7 @@ struct SetupView: View {
                 UserDefaults.standard.removeObject(forKey: "huebar.bridgeIP")
                 authService.authenticate(bridgeIP: knownIP)
             } else {
+                discovery.addCachedBridge()
                 discovery.startDiscovery()
             }
         }
@@ -54,6 +55,20 @@ struct SetupView: View {
                     Text("Searching for bridges…")
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            if discovery.discoveredBridges.isEmpty && !discovery.isSearching {
+                if let error = discovery.discoveryError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
+                }
+
+                Text("No bridges found. Check that your Mac is on the same network as your Hue Bridge, or enter the IP manually below.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
 
             if !discovery.discoveredBridges.isEmpty {
@@ -83,10 +98,17 @@ struct SetupView: View {
                 }
             }
 
-            Button("Search Again") {
-                discovery.startDiscovery()
+            if discovery.discoveredBridges.isEmpty && !discovery.isSearching {
+                Button("Search Again") {
+                    discovery.startDiscovery()
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Search Again") {
+                    discovery.startDiscovery()
+                }
+                .disabled(discovery.isSearching)
             }
-            .disabled(discovery.isSearching)
 
             Divider()
 

@@ -16,6 +16,10 @@ enum CredentialStore {
         storageDirectory.appendingPathComponent("cert_hash")
     }
 
+    private static var lastBridgeIPFile: URL {
+        storageDirectory.appendingPathComponent("last_bridge_ip")
+    }
+
     struct Credentials: Codable {
         var bridgeIP: String
         var applicationKey: String
@@ -31,6 +35,7 @@ enum CredentialStore {
         let data = try JSONEncoder().encode(credentials)
         try data.write(to: credentialsFile, options: .atomic)
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: credentialsFile.path)
+        try? saveLastBridgeIP(credentials.bridgeIP)
     }
 
     static func load() -> Credentials? {
@@ -63,6 +68,26 @@ enum CredentialStore {
             return hash
         }
         return load()?.certificateHash
+    }
+
+    /// Save bridge IP independently so it survives credential deletion.
+    static func saveLastBridgeIP(_ ip: String) throws {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: storageDirectory.path) {
+            try fm.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
+        }
+        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: storageDirectory.path)
+        let data = Data(ip.utf8)
+        try data.write(to: lastBridgeIPFile, options: .atomic)
+        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: lastBridgeIPFile.path)
+    }
+
+    static func loadLastBridgeIP() -> String? {
+        guard let data = try? Data(contentsOf: lastBridgeIPFile),
+              let ip = String(data: data, encoding: .utf8), !ip.isEmpty else {
+            return nil
+        }
+        return ip
     }
 
     static func deleteCertificateHash() {
