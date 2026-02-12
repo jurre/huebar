@@ -40,7 +40,7 @@ struct MenuBarView: View {
         .clipped()
         .preferredColorScheme(.dark)
         .onAppear {
-            Task { await apiClient.fetchAll() }
+            Task { await apiClient.fetchAll(); apiClient.startEventStream() }
         }
     }
 

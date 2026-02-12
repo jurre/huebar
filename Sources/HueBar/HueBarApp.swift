@@ -44,6 +44,7 @@ struct HueBarApp: App {
     }
 
     private func signOut() {
+        apiClient?.stopEventStream()
         authService.signOut()
         apiClient = nil
     }
