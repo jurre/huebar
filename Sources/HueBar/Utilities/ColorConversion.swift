@@ -2,6 +2,29 @@ import Foundation
 import SwiftUI
 
 extension CIEXYColor {
+    /// Vivid color for display indicators (colored dots, previews).
+    func displayColor() -> Color {
+        let z = 1.0 - x - y
+        let yVal = 1.0
+        let xVal = (yVal / max(y, 0.0001)) * x
+        let zVal = (yVal / max(y, 0.0001)) * z
+
+        var r =  xVal * 3.2406 + yVal * -1.5372 + zVal * -0.4986
+        var g = xVal * -0.9689 + yVal *  1.8758 + zVal *  0.0415
+        var b =  xVal * 0.0557 + yVal * -0.2040 + zVal *  1.0570
+        r = max(r, 0); g = max(g, 0); b = max(b, 0)
+
+        func gammaCorrect(_ c: Double) -> Double {
+            c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1.0 / 2.4) - 0.055
+        }
+        r = gammaCorrect(r); g = gammaCorrect(g); b = gammaCorrect(b)
+
+        let maxC = max(r, g, b, 1.0)
+        r /= maxC; g /= maxC; b /= maxC
+
+        return Color(red: r, green: g, blue: b)
+    }
+
     /// Convert CIE 1931 xy + brightness to sRGB SwiftUI Color.
     /// Produces warm, muted tones suitable for dark-mode card backgrounds.
     func swiftUIColor(brightness: Double? = nil) -> Color {

@@ -14,6 +14,17 @@ struct HueLight: Decodable, Sendable, Identifiable {
     var isOn: Bool { on.on }
     var brightness: Double { dimming?.brightness ?? 0.0 }
 
+    /// Vivid color for display indicators (colored dots)
+    var displayColor: Color {
+        if let xy = color?.xy {
+            return xy.displayColor()
+        }
+        if let mirek = color_temperature?.mirek {
+            return CIEXYColor.colorFromMirek(mirek, brightness: 80)
+        }
+        return CIEXYColor.colorFromMirek(370, brightness: 80)
+    }
+
     /// Current color as a SwiftUI Color for card backgrounds
     var currentColor: Color {
         if let xy = color?.xy {

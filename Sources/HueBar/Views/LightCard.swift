@@ -13,6 +13,11 @@ struct LightCard: View {
 
                 Spacer()
 
+                // Color indicator
+                Circle()
+                    .fill(light.isOn ? light.displayColor : Color.gray.opacity(0.3))
+                    .frame(width: 14, height: 14)
+
                 Toggle("", isOn: toggleBinding)
                     .toggleStyle(.switch)
                     .labelsHidden()
