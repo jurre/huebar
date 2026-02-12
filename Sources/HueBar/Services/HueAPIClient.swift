@@ -3,11 +3,15 @@ import Foundation
 enum HueAPIError: Error, LocalizedError {
     case bridgeError(String)
     case invalidResponse
+    case invalidResourceId
+    case invalidBridgeIP
 
     var errorDescription: String? {
         switch self {
         case .bridgeError(let message): message
         case .invalidResponse: "Invalid response from bridge"
+        case .invalidResourceId: "Invalid resource identifier"
+        case .invalidBridgeIP: "Invalid bridge IP address"
         }
     }
 }
@@ -25,13 +29,16 @@ final class HueAPIClient {
     private let applicationKey: String
     private let session: URLSession
 
-    init(bridgeIP: String, applicationKey: String) {
+    init(bridgeIP: String, applicationKey: String) throws {
+        guard IPValidation.isValid(bridgeIP) else {
+            throw HueAPIError.invalidBridgeIP
+        }
         self.bridgeIP = bridgeIP
         self.applicationKey = applicationKey
         let config = URLSessionConfiguration.default
         self.session = URLSession(
             configuration: config,
-            delegate: HueBridgeTrustDelegate(),
+            delegate: HueBridgeTrustDelegate(bridgeIP: bridgeIP),
             delegateQueue: nil
         )
     }
@@ -79,8 +86,17 @@ final class HueAPIClient {
         try await fetch(path: "grouped_light")
     }
 
+    /// Validate that a resource ID matches the expected Hue API UUID format
+    private static func isValidResourceId(_ id: String) -> Bool {
+        let uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+        return id.wholeMatch(of: uuidRegex) != nil
+    }
+
     /// Toggle a grouped light on/off
     func toggleGroupedLight(id: String, on: Bool) async throws {
+        guard Self.isValidResourceId(id) else {
+            throw HueAPIError.invalidResourceId
+        }
         // Optimistically update local state so the toggle reflects immediately
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
             groupedLights[index] = GroupedLight(
@@ -90,7 +106,7 @@ final class HueAPIClient {
             )
         }
 
-        let request = makeRequest(
+        let request = try makeRequest(
             path: "grouped_light/\(id)",
             method: "PUT",
             body: try JSONEncoder().encode(["on": OnState(on: on)])
@@ -147,10 +163,14 @@ final class HueAPIClient {
 
     // MARK: - Private
 
-    private var baseURL: String { "https://\(bridgeIP)" }
-
-    private func makeRequest(path: String, method: String = "GET", body: Data? = nil) -> URLRequest {
-        let url = URL(string: "\(baseURL)/clip/v2/resource/\(path)")!
+    private func makeRequest(path: String, method: String = "GET", body: Data? = nil) throws -> URLRequest {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = bridgeIP
+        components.path = "/clip/v2/resource/\(path)"
+        guard let url = components.url else {
+            throw HueAPIError.invalidResponse
+        }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(applicationKey, forHTTPHeaderField: "hue-application-key")
@@ -162,7 +182,7 @@ final class HueAPIClient {
     }
 
     private func fetch<T: Decodable & Sendable>(path: String) async throws -> [T] {
-        let request = makeRequest(path: path)
+        let request = try makeRequest(path: path)
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {

@@ -12,8 +12,9 @@ enum CredentialStore {
     }
 
     struct Credentials: Codable {
-        let bridgeIP: String
-        let applicationKey: String
+        var bridgeIP: String
+        var applicationKey: String
+        var certificateHash: String?
     }
 
     static func save(credentials: Credentials) throws {
@@ -21,6 +22,8 @@ enum CredentialStore {
         if !fm.fileExists(atPath: appSupportDir.path) {
             try fm.createDirectory(at: appSupportDir, withIntermediateDirectories: true)
         }
+        // Restrict directory to owner only
+        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: appSupportDir.path)
         let data = try JSONEncoder().encode(credentials)
         try data.write(to: credentialsFile, options: .atomic)
         // Restrict file permissions to owner only
@@ -30,6 +33,16 @@ enum CredentialStore {
     static func load() -> Credentials? {
         guard let data = try? Data(contentsOf: credentialsFile) else { return nil }
         return try? JSONDecoder().decode(Credentials.self, from: data)
+    }
+
+    static func updateCertificateHash(_ hash: String) throws {
+        guard var creds = load() else { return }
+        creds.certificateHash = hash
+        try save(credentials: creds)
+    }
+
+    static func pinnedCertificateHash() -> String? {
+        load()?.certificateHash
     }
 
     static func delete() {

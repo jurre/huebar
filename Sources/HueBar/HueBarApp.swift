@@ -8,7 +8,7 @@ struct HueBarApp: App {
 
     init() {
         if let creds = CredentialStore.load() {
-            _apiClient = State(initialValue: HueAPIClient(
+            _apiClient = State(initialValue: try? HueAPIClient(
                 bridgeIP: creds.bridgeIP,
                 applicationKey: creds.applicationKey
             ))
@@ -23,7 +23,7 @@ struct HueBarApp: App {
                     if isAuthenticated, apiClient == nil,
                        let key = authService.applicationKey,
                        let ip = authService.bridgeIP {
-                        apiClient = HueAPIClient(bridgeIP: ip, applicationKey: key)
+                        apiClient = try? HueAPIClient(bridgeIP: ip, applicationKey: key)
                     }
                 }
         }

@@ -105,7 +105,7 @@ struct SetupView: View {
                     Button("Connect") {
                         connectManual()
                     }
-                    .disabled(manualIP.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(!IPValidation.isValid(manualIP))
                 }
             }
         }

@@ -14,7 +14,6 @@ final class HueAuthService {
     var authState: AuthState = .notAuthenticated
     private(set) var bridgeIP: String?
 
-    private let trustDelegate = HueBridgeTrustDelegate()
     private var pollingTask: Task<Void, Never>?
 
     init() {
@@ -26,15 +25,18 @@ final class HueAuthService {
 
     /// Start the link-button authentication flow
     func authenticate(bridgeIP: String) {
+        guard IPValidation.isValid(bridgeIP) else {
+            authState = .error("Invalid IP address")
+            return
+        }
         pollingTask?.cancel()
         self.bridgeIP = bridgeIP
         authState = .waitingForLinkButton
 
-        let delegate = trustDelegate
         pollingTask = Task {
             let session = URLSession(
                 configuration: .ephemeral,
-                delegate: delegate,
+                delegate: HueBridgeTrustDelegate(bridgeIP: bridgeIP),
                 delegateQueue: nil
             )
             defer { session.invalidateAndCancel() }

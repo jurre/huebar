@@ -131,8 +131,9 @@ struct HueAPIClientTests {
 
     @Test func toggleGroupedLightOptimisticUpdate() async throws {
         let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000001"
         client.groupedLights = [
-            GroupedLight(id: "gl-1", on: OnState(on: true), dimming: DimmingState(brightness: 80.0)),
+            GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 80.0)),
         ]
 
         MockURLProtocol.requestHandler = { request in
@@ -155,7 +156,7 @@ struct HueAPIClientTests {
             return (response, Data())
         }
 
-        try await client.toggleGroupedLight(id: "gl-1", on: false)
+        try await client.toggleGroupedLight(id: validId, on: false)
         #expect(client.groupedLights.first?.isOn == false)
     }
 
@@ -181,6 +182,13 @@ struct HueAPIClientTests {
 
         await #expect(throws: HueAPIError.self) {
             _ = try await client.fetchRooms()
+        }
+    }
+
+    @Test func toggleInvalidResourceIdRejected() async {
+        let client = makeClient()
+        await #expect(throws: HueAPIError.self) {
+            try await client.toggleGroupedLight(id: "../../../evil", on: true)
         }
     }
 
