@@ -67,8 +67,10 @@ final class HueAPIClient {
             async let fetchedLights: [HueLight] = fetchLights()
 
             let (r, z, g, s, l) = try await (fetchedRooms, fetchedZones, fetchedGroupedLights, fetchedScenes, fetchedLights)
-            rooms = applySavedOrder(r, key: Self.roomOrderKey)
-            zones = applySavedOrder(z, key: Self.zoneOrderKey)
+            rooms = r
+            zones = z
+            sortRooms()
+            sortZones()
             groupedLights = g
             scenes = s
             lights = l
@@ -298,10 +300,57 @@ final class HueAPIClient {
         groupedLights = try await fetchGroupedLights()
     }
 
-    // MARK: - Ordering
+    // MARK: - Pinning & Ordering
 
     private static let roomOrderKey = "huebar.roomOrder"
     private static let zoneOrderKey = "huebar.zoneOrder"
+    private static let pinnedRoomsKey = "huebar.pinnedRooms"
+    private static let pinnedZonesKey = "huebar.pinnedZones"
+
+    var pinnedRoomIds: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: Self.pinnedRoomsKey) ?? [])
+    }
+
+    var pinnedZoneIds: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: Self.pinnedZonesKey) ?? [])
+    }
+
+    func isRoomPinned(_ id: String) -> Bool { pinnedRoomIds.contains(id) }
+    func isZonePinned(_ id: String) -> Bool { pinnedZoneIds.contains(id) }
+
+    func toggleRoomPin(_ id: String) {
+        var pinned = pinnedRoomIds
+        if pinned.contains(id) { pinned.remove(id) } else { pinned.insert(id) }
+        UserDefaults.standard.set(Array(pinned), forKey: Self.pinnedRoomsKey)
+        sortRooms()
+    }
+
+    func toggleZonePin(_ id: String) {
+        var pinned = pinnedZoneIds
+        if pinned.contains(id) { pinned.remove(id) } else { pinned.insert(id) }
+        UserDefaults.standard.set(Array(pinned), forKey: Self.pinnedZonesKey)
+        sortZones()
+    }
+
+    private func sortRooms() {
+        let pinned = pinnedRoomIds
+        rooms.sort {
+            let aPinned = pinned.contains($0.id)
+            let bPinned = pinned.contains($1.id)
+            if aPinned != bPinned { return aPinned }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    private func sortZones() {
+        let pinned = pinnedZoneIds
+        zones.sort {
+            let aPinned = pinned.contains($0.id)
+            let bPinned = pinned.contains($1.id)
+            if aPinned != bPinned { return aPinned }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
 
     func moveRoom(fromId: String, toId: String) {
         reorder(&rooms, fromId: fromId, toId: toId)

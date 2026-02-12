@@ -85,15 +85,13 @@ struct MenuBarView: View {
                         sectionHeader("Rooms", icon: "house")
 
                         ForEach(apiClient.rooms) { room in
-                            LightRowView(apiClient: apiClient, name: room.name, archetype: room.metadata.archetype, groupedLightId: room.groupedLightId, groupId: room.id) {
+                            LightRowView(apiClient: apiClient, name: room.name, archetype: room.metadata.archetype, groupedLightId: room.groupedLightId, groupId: room.id, isPinned: apiClient.isRoomPinned(room.id)) {
                                 withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = room }
                             }
-                            .draggable(room.id)
-                            .dropDestination(for: String.self) { droppedIds, _ in
-                                guard let fromId = droppedIds.first else { return false }
-                                guard apiClient.rooms.contains(where: { $0.id == fromId }) else { return false }
-                                apiClient.moveRoom(fromId: fromId, toId: room.id)
-                                return true
+                            .contextMenu {
+                                Button(apiClient.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
+                                    withAnimation { apiClient.toggleRoomPin(room.id) }
+                                }
                             }
                         }
 
@@ -102,15 +100,13 @@ struct MenuBarView: View {
                             sectionHeader("Zones", icon: "square.grid.2x2")
 
                             ForEach(apiClient.zones) { zone in
-                                LightRowView(apiClient: apiClient, name: zone.name, archetype: zone.metadata.archetype, groupedLightId: zone.groupedLightId, groupId: zone.id) {
+                                LightRowView(apiClient: apiClient, name: zone.name, archetype: zone.metadata.archetype, groupedLightId: zone.groupedLightId, groupId: zone.id, isPinned: apiClient.isZonePinned(zone.id)) {
                                     withAnimation(.easeInOut(duration: 0.25)) { selectedZone = zone }
                                 }
-                                .draggable(zone.id)
-                                .dropDestination(for: String.self) { droppedIds, _ in
-                                    guard let fromId = droppedIds.first else { return false }
-                                    guard apiClient.zones.contains(where: { $0.id == fromId }) else { return false }
-                                    apiClient.moveZone(fromId: fromId, toId: zone.id)
-                                    return true
+                                .contextMenu {
+                                    Button(apiClient.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {
+                                        withAnimation { apiClient.toggleZonePin(zone.id) }
+                                    }
                                 }
                             }
                         }
@@ -213,6 +209,7 @@ private struct LightRowView: View {
     let archetype: String?
     let groupedLightId: String?
     let groupId: String
+    var isPinned: Bool = false
     let onTap: () -> Void
 
     @State private var sliderBrightness: Double = 0
@@ -230,21 +227,30 @@ private struct LightRowView: View {
         VStack(alignment: .leading, spacing: 6) {
             // Icon + Name + Toggle row
             HStack(spacing: 8) {
-                Image(systemName: ArchetypeIcon.systemName(for: archetype))
-                    .font(.title2)
-                    .foregroundStyle(isOn ? .white : .secondary)
-                    .frame(width: 28)
+                Button(action: onTap) {
+                    HStack(spacing: 8) {
+                        Image(systemName: ArchetypeIcon.systemName(for: archetype))
+                            .font(.title2)
+                            .foregroundStyle(isOn ? .white : .secondary)
+                            .frame(width: 28)
 
-                HStack {
-                    Text(name)
-                        .fontWeight(.medium)
-                        .foregroundStyle(isOn ? .white : .primary)
-                        .shadow(color: isOn ? .black.opacity(0.3) : .clear, radius: 2, y: 1)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(isOn ? AnyShapeStyle(.white.opacity(0.6)) : AnyShapeStyle(.tertiary))
+                        Text(name)
+                            .fontWeight(.medium)
+                            .foregroundStyle(isOn ? .white : .primary)
+                            .shadow(color: isOn ? .black.opacity(0.3) : .clear, radius: 2, y: 1)
+                        if isPinned {
+                            Image(systemName: "pin.fill")
+                                .font(.caption2)
+                                .foregroundStyle(isOn ? .white.opacity(0.6) : .secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(isOn ? AnyShapeStyle(.white.opacity(0.6)) : AnyShapeStyle(.tertiary))
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
 
                 Toggle("", isOn: toggleBinding)
                     .toggleStyle(.switch)
@@ -271,8 +277,6 @@ private struct LightRowView: View {
             RoundedRectangle(cornerRadius: 14)
                 .fill(cardGradient)
         )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
         .padding(.horizontal)
         .onAppear {
             sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
