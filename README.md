@@ -1,0 +1,74 @@
+# HueBar
+
+A native macOS menubar app for controlling your Philips Hue lights. See your rooms and zones at a glance and toggle them on and off — right from the menu bar.
+
+<img width="300" alt="HueBar screenshot" src="https://github.com/user-attachments/assets/placeholder.png">
+
+## Features
+
+- 💡 **Rooms & Zones** — View all your Hue rooms and zones with on/off toggles
+- 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery
+- 🔒 **Secure** — Application key stored in the macOS Keychain
+- 🪶 **Lightweight** — Native SwiftUI, no external dependencies, lives in your menu bar
+
+## Requirements
+
+- macOS 15.0 (Sequoia) or later
+- A Philips Hue Bridge on your local network
+
+## Installation
+
+### Build from source
+
+```bash
+git clone https://github.com/jurre/huebar.git
+cd huebar
+swift build -c release
+```
+
+The built binary will be at `.build/release/HueBar`. You can copy it to `/Applications` or wherever you like.
+
+### Run directly
+
+```bash
+swift run
+```
+
+## Setup
+
+1. Launch HueBar — a lightbulb icon appears in your menu bar
+2. The app will search for your Hue Bridge on the network
+3. When your bridge is found, click it and press the **link button** on your physical Hue Bridge
+4. That's it — your rooms and zones appear with toggle switches
+
+## Architecture
+
+HueBar uses the [Hue CLIP API v2](https://developers.meethue.com/develop/hue-api-v2/) for modern resource-based control. No external dependencies — only Apple frameworks:
+
+- **SwiftUI** — `MenuBarExtra` with `.window` style for the popover UI
+- **Network** — `NWBrowser` for mDNS bridge discovery
+- **Foundation** — `URLSession` for HTTPS communication
+- **Security** — Keychain storage for the application key
+
+```
+Sources/HueBar/
+├── HueBarApp.swift              # App entry point, MenuBarExtra
+├── Views/
+│   ├── MenuBarView.swift        # Room/zone list with toggles
+│   └── SetupView.swift          # Bridge discovery & auth flow
+├── Models/
+│   ├── Room.swift               # Room model + API response types
+│   ├── Zone.swift               # Zone model
+│   └── GroupedLight.swift       # Grouped light state (on/off, brightness)
+├── Services/
+│   ├── HueBridgeDiscovery.swift # mDNS + cloud bridge discovery
+│   ├── HueAPIClient.swift       # CLIP v2 API client
+│   ├── HueAuthService.swift     # Link-button authentication
+│   └── KeychainService.swift    # Keychain storage
+└── Utilities/
+    └── TrustDelegate.swift      # Self-signed cert handling
+```
+
+## License
+
+[MIT](LICENSE)
