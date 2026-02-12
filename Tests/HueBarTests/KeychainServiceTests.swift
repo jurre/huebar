@@ -1,9 +1,16 @@
+import Foundation
 import Testing
 
 @testable import HueBar
 
 @Suite(.serialized)
 struct CredentialStoreTests {
+    init() {
+        // Use a temp directory so tests never touch real credentials
+        CredentialStore.storageDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("HueBarTests-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+    }
+
     @Test func saveAndLoad() throws {
         defer { CredentialStore.delete() }
         try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "test-key-123"))
