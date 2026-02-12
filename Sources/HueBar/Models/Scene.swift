@@ -110,17 +110,17 @@ struct CIEXYColor: Decodable, Sendable {
         let sat = rgbMax > 0 ? delta / rgbMax : 0
 
         // Warm-shift: pull all hues toward orange (0.06) via shortest
-        // path on the hue circle. Produces the warm brown/amber tones
-        // seen in the iOS Hue app.
+        // path on the hue circle. Colors are used as overlays on a warm
+        // brown base, so they can be slightly more vivid.
         let warmTarget = 0.06
         var hueDiff = warmTarget - hue
         if hueDiff > 0.5 { hueDiff -= 1.0 }
         if hueDiff < -0.5 { hueDiff += 1.0 }
-        var warmHue = hue + hueDiff * 0.55
+        var warmHue = hue + hueDiff * 0.15
         if warmHue < 0 { warmHue += 1 }
         if warmHue > 1 { warmHue -= 1 }
 
-        return Color(hue: warmHue, saturation: min(sat, 0.45), brightness: 0.38)
+        return Color(hue: warmHue, saturation: min(sat, 0.65), brightness: 0.55)
     }
 
     /// Convert mirek color temperature to an approximate color.

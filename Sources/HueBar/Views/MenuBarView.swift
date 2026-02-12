@@ -17,6 +17,7 @@ struct MenuBarView: View {
                     name: room.name,
                     groupedLightId: room.groupedLightId,
                     groupId: room.id,
+                    room: room,
                     onBack: { withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = nil } }
                 )
                 .transition(.move(edge: .trailing))
@@ -26,6 +27,7 @@ struct MenuBarView: View {
                     name: zone.name,
                     groupedLightId: zone.groupedLightId,
                     groupId: zone.id,
+                    zone: zone,
                     onBack: { withAnimation(.easeInOut(duration: 0.25)) { selectedZone = nil } }
                 )
                 .transition(.move(edge: .trailing))
@@ -224,7 +226,7 @@ private struct LightRowView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(cardBackground)
+                .fill(cardGradient)
         )
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
@@ -248,20 +250,21 @@ private struct LightRowView: View {
         }
     }
 
-    private var cardBackground: some ShapeStyle {
+    private var cardGradient: some ShapeStyle {
+        guard isOn else {
+            return AnyShapeStyle(Color.white.opacity(0.08))
+        }
         let colors = apiClient.activeSceneColors(for: groupId)
-        if isOn && colors.count >= 2 {
+        if colors.count >= 2 {
             return AnyShapeStyle(
                 LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
             )
-        } else if isOn, let first = colors.first {
+        } else if let first = colors.first {
             return AnyShapeStyle(
                 LinearGradient(colors: [first, first.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
             )
-        } else if isOn {
-            return AnyShapeStyle(Color.white.opacity(0.15))
         } else {
-            return AnyShapeStyle(Color.white.opacity(0.08))
+            return AnyShapeStyle(Color.white.opacity(0.15))
         }
     }
 
