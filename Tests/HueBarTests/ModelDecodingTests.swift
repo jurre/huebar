@@ -110,4 +110,43 @@ struct ModelDecodingTests {
         #expect(scene.name == "Energize")
         #expect(scene.status == nil)
     }
+
+    @Test func lightDecodingWithColor() throws {
+        let json = """
+        {
+            "id": "light-1",
+            "owner": {"rid": "device-1", "rtype": "device"},
+            "metadata": {"name": "Desk Lamp", "archetype": "table_wash"},
+            "on": {"on": true},
+            "dimming": {"brightness": 75.5},
+            "color": {"xy": {"x": 0.5, "y": 0.4}},
+            "color_temperature": {"mirek": 350, "mirek_valid": true}
+        }
+        """
+        let light = try decoder.decode(HueLight.self, from: Data(json.utf8))
+        #expect(light.id == "light-1")
+        #expect(light.name == "Desk Lamp")
+        #expect(light.isOn == true)
+        #expect(light.brightness == 75.5)
+        #expect(light.owner.rid == "device-1")
+        #expect(light.color?.xy.x == 0.5)
+        #expect(light.color_temperature?.mirek == 350)
+    }
+
+    @Test func lightDecodingWhiteOnly() throws {
+        let json = """
+        {
+            "id": "light-2",
+            "owner": {"rid": "device-2", "rtype": "device"},
+            "metadata": {"name": "Ceiling", "archetype": "ceiling_round"},
+            "on": {"on": false},
+            "dimming": {"brightness": 50.0}
+        }
+        """
+        let light = try decoder.decode(HueLight.self, from: Data(json.utf8))
+        #expect(light.id == "light-2")
+        #expect(light.isOn == false)
+        #expect(light.color == nil)
+        #expect(light.color_temperature == nil)
+    }
 }

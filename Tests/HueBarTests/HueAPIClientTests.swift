@@ -237,4 +237,69 @@ struct HueAPIClientTests {
             try await client.setBrightness(groupedLightId: "../../../evil", brightness: 50)
         }
     }
+
+    @Test func lightsFilteredByRoom() {
+        let client = makeClient()
+        let room = Room(
+            id: "room-1",
+            metadata: RoomMetadata(name: "Living Room", archetype: "living_room"),
+            services: [ResourceLink(rid: "gl-1", rtype: "grouped_light")],
+            children: [
+                ResourceLink(rid: "device-A", rtype: "device"),
+                ResourceLink(rid: "device-B", rtype: "device"),
+            ]
+        )
+        client.lights = [
+            makeLight(id: "l1", name: "Lamp", ownerRid: "device-A"),
+            makeLight(id: "l2", name: "Ceiling", ownerRid: "device-B"),
+            makeLight(id: "l3", name: "Other Room", ownerRid: "device-C"),
+        ]
+
+        let roomLights = client.lights(forRoom: room)
+        #expect(roomLights.count == 2)
+        #expect(roomLights.map(\.name).contains("Lamp"))
+        #expect(roomLights.map(\.name).contains("Ceiling"))
+    }
+
+    @Test func lightsFilteredByZone() {
+        let client = makeClient()
+        let zone = Zone(
+            id: "zone-1",
+            metadata: ZoneMetadata(name: "Downstairs", archetype: "home"),
+            services: [ResourceLink(rid: "gl-2", rtype: "grouped_light")],
+            children: [
+                ResourceLink(rid: "l1", rtype: "light"),
+                ResourceLink(rid: "l3", rtype: "light"),
+            ]
+        )
+        client.lights = [
+            makeLight(id: "l1", name: "Lamp", ownerRid: "device-A"),
+            makeLight(id: "l2", name: "Ceiling", ownerRid: "device-B"),
+            makeLight(id: "l3", name: "Floor", ownerRid: "device-C"),
+        ]
+
+        let zoneLights = client.lights(forZone: zone)
+        #expect(zoneLights.count == 2)
+        #expect(zoneLights.map(\.name).contains("Lamp"))
+        #expect(zoneLights.map(\.name).contains("Floor"))
+    }
+
+    @Test func toggleLightInvalidIdRejected() async {
+        let client = makeClient()
+        await #expect(throws: HueAPIError.self) {
+            try await client.toggleLight(id: "../evil", on: true)
+        }
+    }
+
+    private func makeLight(id: String, name: String, ownerRid: String) -> HueLight {
+        HueLight(
+            id: id,
+            owner: ResourceLink(rid: ownerRid, rtype: "device"),
+            metadata: LightMetadata(name: name, archetype: "classic_bulb"),
+            on: OnState(on: true),
+            dimming: DimmingState(brightness: 50),
+            color: nil,
+            color_temperature: nil
+        )
+    }
 }

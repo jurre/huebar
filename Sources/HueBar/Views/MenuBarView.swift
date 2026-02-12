@@ -162,6 +162,49 @@ struct MenuBarView: View {
     }
 }
 
+// MARK: - LightCard
+
+private struct LightCard: View {
+    @Bindable var apiClient: HueAPIClient
+    let light: HueLight
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: ArchetypeIcon.systemName(for: light.metadata.archetype))
+                    .font(.title2)
+                    .foregroundStyle(light.isOn ? .white : .secondary)
+
+                Spacer()
+
+                Toggle("", isOn: toggleBinding)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .controlSize(.mini)
+            }
+
+            Text(light.name)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(light.isOn ? .white : .primary)
+                .lineLimit(2)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(light.isOn ? AnyShapeStyle(light.currentColor.opacity(0.7)) : AnyShapeStyle(Color.gray.opacity(0.15)))
+        )
+    }
+
+    private var toggleBinding: Binding<Bool> {
+        Binding(
+            get: { light.isOn },
+            set: { newValue in
+                Task { try? await apiClient.toggleLight(id: light.id, on: newValue) }
+            }
+        )
+    }
+}
+
 // MARK: - LightRowView (main list row with brightness slider)
 
 private struct LightRowView: View {
@@ -286,6 +329,8 @@ private struct RoomDetailView: View {
     let name: String
     let groupedLightId: String?
     let groupId: String
+    var room: Room? = nil
+    var zone: Zone? = nil
     let onBack: () -> Void
 
     @State private var sliderBrightness: Double = 0
@@ -299,8 +344,19 @@ private struct RoomDetailView: View {
         groupedLight?.isOn ?? false
     }
 
-    private let columns = [
+    private var roomLights: [HueLight] {
+        if let room { return apiClient.lights(forRoom: room) }
+        if let zone { return apiClient.lights(forZone: zone) }
+        return []
+    }
+
+    private let sceneColumns = [
         GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
+
+    private let lightColumns = [
         GridItem(.flexible(), spacing: 8),
         GridItem(.flexible(), spacing: 8)
     ]
@@ -346,22 +402,18 @@ private struct RoomDetailView: View {
 
             Divider()
 
-            // Scenes grid
-            let groupScenes = apiClient.scenes(for: groupId)
-            if groupScenes.isEmpty {
-                Spacer()
-                Text("No scenes")
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
+            // Scrollable content: scenes + lights
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Scenes grid
+                    let groupScenes = apiClient.scenes(for: groupId)
+                    if !groupScenes.isEmpty {
                         Text("MY SCENES")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 4)
 
-                        LazyVGrid(columns: columns, spacing: 8) {
+                        LazyVGrid(columns: sceneColumns, spacing: 8) {
                             ForEach(groupScenes) { scene in
                                 SceneCard(
                                     scene: scene,
@@ -372,8 +424,23 @@ private struct RoomDetailView: View {
                             }
                         }
                     }
-                    .padding()
+
+                    // Lights grid
+                    let lightsInRoom = roomLights
+                    if !lightsInRoom.isEmpty {
+                        Text("LIGHTS")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+
+                        LazyVGrid(columns: lightColumns, spacing: 8) {
+                            ForEach(lightsInRoom) { light in
+                                LightCard(apiClient: apiClient, light: light)
+                            }
+                        }
+                    }
                 }
+                .padding()
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)

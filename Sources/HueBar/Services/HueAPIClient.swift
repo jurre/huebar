@@ -24,6 +24,7 @@ final class HueAPIClient {
     var zones: [Zone] = []
     var groupedLights: [GroupedLight] = []
     var scenes: [HueScene] = []
+    var lights: [HueLight] = []
     var activeSceneId: String?
     var isLoading: Bool = false
     var lastError: String?
@@ -63,12 +64,14 @@ final class HueAPIClient {
             async let fetchedZones: [Zone] = fetchZones()
             async let fetchedGroupedLights: [GroupedLight] = fetchGroupedLights()
             async let fetchedScenes: [HueScene] = fetchScenes()
+            async let fetchedLights: [HueLight] = fetchLights()
 
-            let (r, z, g, s) = try await (fetchedRooms, fetchedZones, fetchedGroupedLights, fetchedScenes)
+            let (r, z, g, s, l) = try await (fetchedRooms, fetchedZones, fetchedGroupedLights, fetchedScenes, fetchedLights)
             rooms = applySavedOrder(r, key: Self.roomOrderKey)
             zones = applySavedOrder(z, key: Self.zoneOrderKey)
             groupedLights = g
             scenes = s
+            lights = l
         } catch {
             lastError = error.localizedDescription
         }
@@ -94,6 +97,80 @@ final class HueAPIClient {
     /// Fetch all scenes
     func fetchScenes() async throws -> [HueScene] {
         try await fetch(path: "scene")
+    }
+
+    /// Fetch all individual lights
+    func fetchLights() async throws -> [HueLight] {
+        try await fetch(path: "light")
+    }
+
+    /// Toggle an individual light on/off
+    func toggleLight(id: String, on: Bool) async throws {
+        guard Self.isValidResourceId(id) else {
+            throw HueAPIError.invalidResourceId
+        }
+        // Optimistic update
+        if let index = lights.firstIndex(where: { $0.id == id }) {
+            let light = lights[index]
+            lights[index] = HueLight(
+                id: id, owner: light.owner, metadata: light.metadata,
+                on: OnState(on: on), dimming: light.dimming,
+                color: light.color, color_temperature: light.color_temperature
+            )
+        }
+
+        let request = try makeRequest(
+            path: "light/\(id)",
+            method: "PUT",
+            body: try JSONEncoder().encode(["on": OnState(on: on)])
+        )
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            lights = try await fetchLights()
+            throw HueAPIError.invalidResponse
+        }
+    }
+
+    /// Set brightness for an individual light (0.0–100.0)
+    func setLightBrightness(id: String, brightness: Double) async throws {
+        guard Self.isValidResourceId(id) else {
+            throw HueAPIError.invalidResourceId
+        }
+        let clamped = min(max(brightness, 0.0), 100.0)
+
+        if let index = lights.firstIndex(where: { $0.id == id }) {
+            let light = lights[index]
+            lights[index] = HueLight(
+                id: id, owner: light.owner, metadata: light.metadata,
+                on: light.on, dimming: DimmingState(brightness: clamped),
+                color: light.color, color_temperature: light.color_temperature
+            )
+        }
+
+        let request = try makeRequest(
+            path: "light/\(id)",
+            method: "PUT",
+            body: try JSONEncoder().encode(["dimming": DimmingState(brightness: clamped)])
+        )
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            lights = try await fetchLights()
+            throw HueAPIError.invalidResponse
+        }
+    }
+
+    /// Get lights belonging to a room (room children are devices, lights have device owners)
+    func lights(forRoom room: Room) -> [HueLight] {
+        let deviceIds = Set(room.children.filter { $0.rtype == "device" }.map(\.rid))
+        return lights.filter { deviceIds.contains($0.owner.rid) }
+    }
+
+    /// Get lights belonging to a zone (zone children reference lights directly)
+    func lights(forZone zone: Zone) -> [HueLight] {
+        let lightIds = Set(zone.children.filter { $0.rtype == "light" }.map(\.rid))
+        return lights.filter { lightIds.contains($0.id) }
     }
 
     /// Validate that a resource ID matches the expected Hue API UUID format
