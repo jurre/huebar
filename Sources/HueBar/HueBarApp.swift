@@ -6,11 +6,19 @@ struct HueBarApp: App {
     @State private var authService = HueAuthService()
     @State private var apiClient: HueAPIClient?
 
+    init() {
+        if let creds = CredentialStore.load() {
+            _apiClient = State(initialValue: HueAPIClient(
+                bridgeIP: creds.bridgeIP,
+                applicationKey: creds.applicationKey
+            ))
+        }
+    }
+
     var body: some Scene {
         MenuBarExtra("HueBar", systemImage: menuBarIcon) {
             mainView
                 .frame(width: 300)
-                .onAppear { restoreSession() }
                 .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
                     if isAuthenticated, apiClient == nil,
                        let key = authService.applicationKey,
@@ -33,14 +41,6 @@ struct HueBarApp: App {
         } else {
             SetupView(discovery: discovery, authService: authService)
         }
-    }
-
-    private func restoreSession() {
-        guard apiClient == nil,
-              let key = authService.applicationKey,
-              let ip = authService.bridgeIP
-        else { return }
-        apiClient = HueAPIClient(bridgeIP: ip, applicationKey: key)
     }
 
     private func signOut() {
