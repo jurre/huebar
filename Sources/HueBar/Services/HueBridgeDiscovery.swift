@@ -72,7 +72,9 @@ final class HueBridgeDiscovery {
     private func cloudDiscover() async {
         guard let url = URL(string: "https://discovery.meethue.com") else { return }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else { return }
             let bridges = try JSONDecoder().decode([CloudDiscoveryResult].self, from: data)
             for bridge in bridges {
                 let discovered = DiscoveredBridge(
@@ -85,7 +87,7 @@ final class HueBridgeDiscovery {
                 }
             }
         } catch {
-            // Cloud discovery failed silently — mDNS or manual entry still available
+            // Cloud discovery failed — mDNS or manual entry still available
         }
     }
 

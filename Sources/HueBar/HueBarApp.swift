@@ -13,12 +13,11 @@ struct HueBarApp: App {
                 applicationKey: creds.applicationKey
             ))
         } else if let legacyIP = UserDefaults.standard.string(forKey: "huebar.bridgeIP") {
-            // Migrate known bridge IP from legacy UserDefaults so SetupView can offer it
-            _discovery = State(initialValue: {
-                let d = HueBridgeDiscovery()
-                d.manualIP = legacyIP
-                return d
-            }())
+            // We know the bridge IP but need to re-authenticate — skip discovery,
+            // go straight to "press the link button"
+            let auth = HueAuthService()
+            auth.authenticate(bridgeIP: legacyIP)
+            _authService = State(initialValue: auth)
             UserDefaults.standard.removeObject(forKey: "huebar.bridgeIP")
         }
     }
