@@ -47,6 +47,13 @@ struct MenuBarView: View {
 
                         ForEach(apiClient.rooms) { room in
                             lightRow(name: room.name, groupedLightId: room.groupedLightId)
+                                .draggable(room.id)
+                                .dropDestination(for: String.self) { droppedIds, _ in
+                                    guard let fromId = droppedIds.first else { return false }
+                                    guard apiClient.rooms.contains(where: { $0.id == fromId }) else { return false }
+                                    apiClient.moveRoom(fromId: fromId, toId: room.id)
+                                    return true
+                                }
                         }
 
                         // Zones
@@ -55,6 +62,13 @@ struct MenuBarView: View {
 
                             ForEach(apiClient.zones) { zone in
                                 lightRow(name: zone.name, groupedLightId: zone.groupedLightId)
+                                    .draggable(zone.id)
+                                    .dropDestination(for: String.self) { droppedIds, _ in
+                                        guard let fromId = droppedIds.first else { return false }
+                                        guard apiClient.zones.contains(where: { $0.id == fromId }) else { return false }
+                                        apiClient.moveZone(fromId: fromId, toId: zone.id)
+                                        return true
+                                    }
                             }
                         }
                     }

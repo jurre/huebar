@@ -54,8 +54,8 @@ final class HueAPIClient {
             async let fetchedGroupedLights: [GroupedLight] = fetchGroupedLights()
 
             let (r, z, g) = try await (fetchedRooms, fetchedZones, fetchedGroupedLights)
-            rooms = r
-            zones = z
+            rooms = applySavedOrder(r, key: Self.roomOrderKey)
+            zones = applySavedOrder(z, key: Self.zoneOrderKey)
             groupedLights = g
         } catch {
             lastError = error.localizedDescription
@@ -108,6 +108,41 @@ final class HueAPIClient {
     func groupedLight(for groupId: String?) -> GroupedLight? {
         guard let groupId else { return nil }
         return groupedLights.first(where: { $0.id == groupId })
+    }
+
+    // MARK: - Ordering
+
+    private static let roomOrderKey = "huebar.roomOrder"
+    private static let zoneOrderKey = "huebar.zoneOrder"
+
+    func moveRoom(fromId: String, toId: String) {
+        reorder(&rooms, fromId: fromId, toId: toId)
+        saveOrder(rooms, key: Self.roomOrderKey)
+    }
+
+    func moveZone(fromId: String, toId: String) {
+        reorder(&zones, fromId: fromId, toId: toId)
+        saveOrder(zones, key: Self.zoneOrderKey)
+    }
+
+    private func reorder<T: Identifiable>(_ items: inout [T], fromId: String, toId: String) where T.ID == String {
+        guard let fromIndex = items.firstIndex(where: { $0.id == fromId }),
+              let toIndex = items.firstIndex(where: { $0.id == toId }),
+              fromIndex != toIndex else { return }
+        let item = items.remove(at: fromIndex)
+        items.insert(item, at: toIndex)
+    }
+
+    private func saveOrder<T: Identifiable>(_ items: [T], key: String) where T.ID == String {
+        UserDefaults.standard.set(items.map(\.id), forKey: key)
+    }
+
+    private func applySavedOrder<T: Identifiable>(_ items: [T], key: String) -> [T] where T.ID == String {
+        guard let savedOrder = UserDefaults.standard.stringArray(forKey: key) else { return items }
+        let lookup = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        let ordered = savedOrder.compactMap { lookup[$0] }
+        let remaining = items.filter { !savedOrder.contains($0.id) }
+        return ordered + remaining
     }
 
     // MARK: - Private
