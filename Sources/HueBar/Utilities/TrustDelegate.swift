@@ -1,8 +1,10 @@
 import Foundation
 import CryptoKit
 
+// bridgeIP is immutable (let) and String is Sendable, so this is safe.
+// NSObject prevents automatic Sendable synthesis, but no mutable state exists.
 final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
-    private let bridgeIP: String?
+    let bridgeIP: String?
 
     /// Create a delegate that only bypasses TLS for the specified bridge IP.
     /// If bridgeIP is nil, performs default TLS validation (used during discovery).

@@ -41,7 +41,11 @@ final class HueAuthService {
             )
             defer { session.invalidateAndCancel() }
 
-            guard let url = URL(string: "https://\(bridgeIP)/api") else {
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = bridgeIP
+            components.path = "/api"
+            guard let url = components.url else {
                 authState = .error("Invalid bridge IP")
                 return
             }

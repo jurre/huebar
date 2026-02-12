@@ -45,4 +45,28 @@ struct CredentialStoreTests {
         CredentialStore.delete()
         CredentialStore.delete()
     }
+
+    @Test func certHashSavedBeforeCredentials() throws {
+        defer { CredentialStore.delete() }
+        // No credentials exist yet
+        #expect(CredentialStore.load() == nil)
+        // Cert hash can still be saved and retrieved (TOFU during initial auth)
+        try CredentialStore.updateCertificateHash("abc123hash")
+        #expect(CredentialStore.pinnedCertificateHash() == "abc123hash")
+    }
+
+    @Test func certHashSurvivedWithCredentials() throws {
+        defer { CredentialStore.delete() }
+        try CredentialStore.updateCertificateHash("abc123hash")
+        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "key"))
+        // Hash is still available after credentials are saved
+        #expect(CredentialStore.pinnedCertificateHash() == "abc123hash")
+    }
+
+    @Test func deleteRemovesCertHash() throws {
+        defer { CredentialStore.delete() }
+        try CredentialStore.updateCertificateHash("abc123hash")
+        CredentialStore.delete()
+        #expect(CredentialStore.pinnedCertificateHash() == nil)
+    }
 }
