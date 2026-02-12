@@ -36,6 +36,13 @@ final class HueAPIClient {
         )
     }
 
+    // Internal init for testing with a custom URLSession
+    init(bridgeIP: String, applicationKey: String, session: URLSession) {
+        self.bridgeIP = bridgeIP
+        self.applicationKey = applicationKey
+        self.session = session
+    }
+
     /// Fetch all rooms, zones, and grouped lights concurrently
     func fetchAll() async {
         isLoading = true

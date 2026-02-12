@@ -7,11 +7,21 @@ let package = Package(
     platforms: [
         .macOS(.v15),
     ],
+    dependencies: [
+        .package(url: "https://github.com/swiftlang/swift-testing.git", branch: "main"),
+    ],
     targets: [
         .executableTarget(
             name: "HueBar",
             path: "Sources/HueBar",
             exclude: ["Info.plist"]
+        ),
+        .testTarget(
+            name: "HueBarTests",
+            dependencies: [
+                "HueBar",
+                .product(name: "Testing", package: "swift-testing"),
+            ]
         ),
     ]
 )
