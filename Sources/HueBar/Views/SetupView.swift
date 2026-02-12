@@ -4,7 +4,13 @@ struct SetupView: View {
     @Bindable var discovery: HueBridgeDiscovery
     @Bindable var authService: HueAuthService
 
-    @State private var manualIP: String = ""
+    @State private var manualIP: String
+
+    init(discovery: HueBridgeDiscovery, authService: HueAuthService) {
+        self.discovery = discovery
+        self.authService = authService
+        _manualIP = State(initialValue: discovery.manualIP)
+    }
     @State private var pulseAnimation: Bool = false
 
     var body: some View {
