@@ -32,8 +32,14 @@ struct SetupView: View {
         }
         .padding()
         .frame(width: 300)
-        .onAppear {
-            discovery.startDiscovery()
+        .task {
+            // Auto-connect if we have a known bridge IP from a previous session
+            if let knownIP = UserDefaults.standard.string(forKey: "huebar.bridgeIP") {
+                UserDefaults.standard.removeObject(forKey: "huebar.bridgeIP")
+                authService.authenticate(bridgeIP: knownIP)
+            } else {
+                discovery.startDiscovery()
+            }
         }
     }
 

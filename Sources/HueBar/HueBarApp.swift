@@ -12,13 +12,6 @@ struct HueBarApp: App {
                 bridgeIP: creds.bridgeIP,
                 applicationKey: creds.applicationKey
             ))
-        } else if let legacyIP = UserDefaults.standard.string(forKey: "huebar.bridgeIP") {
-            // We know the bridge IP but need to re-authenticate — skip discovery,
-            // go straight to "press the link button"
-            let auth = HueAuthService()
-            auth.authenticate(bridgeIP: legacyIP)
-            _authService = State(initialValue: auth)
-            UserDefaults.standard.removeObject(forKey: "huebar.bridgeIP")
         }
     }
 
