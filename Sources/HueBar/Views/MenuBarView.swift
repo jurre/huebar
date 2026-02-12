@@ -53,13 +53,6 @@ struct MenuBarView: View {
                 Text("HueBar")
                     .font(.headline)
                 Spacer()
-                Button {
-                    Task { await apiClient.fetchAll() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .disabled(apiClient.isLoading)
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
