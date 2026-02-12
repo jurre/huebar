@@ -9,10 +9,4 @@ struct GroupedLight: Decodable, Sendable, Identifiable {
     var brightness: Double { dimming?.brightness ?? 0.0 }
 }
 
-struct OnState: Codable, Sendable {
-    let on: Bool
-}
 
-struct DimmingState: Codable, Sendable {
-    let brightness: Double
-}

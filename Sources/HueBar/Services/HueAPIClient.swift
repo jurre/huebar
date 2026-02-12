@@ -29,6 +29,8 @@ final class HueAPIClient {
     var isLoading: Bool = false
     var lastError: String?
 
+    let orderManager = RoomOrderManager()
+
     private let bridgeIP: String
     private let applicationKey: String
     private let session: URLSession
@@ -69,8 +71,8 @@ final class HueAPIClient {
             let (r, z, g, s, l) = try await (fetchedRooms, fetchedZones, fetchedGroupedLights, fetchedScenes, fetchedLights)
             rooms = r
             zones = z
-            sortRooms()
-            sortZones()
+            orderManager.sortRooms(&rooms)
+            orderManager.sortZones(&zones)
             groupedLights = g
             scenes = s
             lights = l
@@ -300,87 +302,19 @@ final class HueAPIClient {
         groupedLights = try await fetchGroupedLights()
     }
 
-    // MARK: - Pinning & Ordering
+    // MARK: - Pinning & Ordering (forwarded to RoomOrderManager)
 
-    private static let roomOrderKey = "huebar.roomOrder"
-    private static let zoneOrderKey = "huebar.zoneOrder"
-    private static let pinnedRoomsKey = "huebar.pinnedRooms"
-    private static let pinnedZonesKey = "huebar.pinnedZones"
+    var pinnedRoomIds: Set<String> { orderManager.pinnedRoomIds }
+    var pinnedZoneIds: Set<String> { orderManager.pinnedZoneIds }
 
-    var pinnedRoomIds: Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: Self.pinnedRoomsKey) ?? [])
-    }
+    func isRoomPinned(_ id: String) -> Bool { orderManager.isRoomPinned(id) }
+    func isZonePinned(_ id: String) -> Bool { orderManager.isZonePinned(id) }
 
-    var pinnedZoneIds: Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: Self.pinnedZonesKey) ?? [])
-    }
+    func toggleRoomPin(_ id: String) { orderManager.toggleRoomPin(id, rooms: &rooms) }
+    func toggleZonePin(_ id: String) { orderManager.toggleZonePin(id, zones: &zones) }
 
-    func isRoomPinned(_ id: String) -> Bool { pinnedRoomIds.contains(id) }
-    func isZonePinned(_ id: String) -> Bool { pinnedZoneIds.contains(id) }
-
-    func toggleRoomPin(_ id: String) {
-        var pinned = pinnedRoomIds
-        if pinned.contains(id) { pinned.remove(id) } else { pinned.insert(id) }
-        UserDefaults.standard.set(Array(pinned), forKey: Self.pinnedRoomsKey)
-        sortRooms()
-    }
-
-    func toggleZonePin(_ id: String) {
-        var pinned = pinnedZoneIds
-        if pinned.contains(id) { pinned.remove(id) } else { pinned.insert(id) }
-        UserDefaults.standard.set(Array(pinned), forKey: Self.pinnedZonesKey)
-        sortZones()
-    }
-
-    private func sortRooms() {
-        let pinned = pinnedRoomIds
-        rooms.sort {
-            let aPinned = pinned.contains($0.id)
-            let bPinned = pinned.contains($1.id)
-            if aPinned != bPinned { return aPinned }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
-    }
-
-    private func sortZones() {
-        let pinned = pinnedZoneIds
-        zones.sort {
-            let aPinned = pinned.contains($0.id)
-            let bPinned = pinned.contains($1.id)
-            if aPinned != bPinned { return aPinned }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
-    }
-
-    func moveRoom(fromId: String, toId: String) {
-        reorder(&rooms, fromId: fromId, toId: toId)
-        saveOrder(rooms, key: Self.roomOrderKey)
-    }
-
-    func moveZone(fromId: String, toId: String) {
-        reorder(&zones, fromId: fromId, toId: toId)
-        saveOrder(zones, key: Self.zoneOrderKey)
-    }
-
-    private func reorder<T: Identifiable>(_ items: inout [T], fromId: String, toId: String) where T.ID == String {
-        guard let fromIndex = items.firstIndex(where: { $0.id == fromId }),
-              let toIndex = items.firstIndex(where: { $0.id == toId }),
-              fromIndex != toIndex else { return }
-        let item = items.remove(at: fromIndex)
-        items.insert(item, at: toIndex)
-    }
-
-    private func saveOrder<T: Identifiable>(_ items: [T], key: String) where T.ID == String {
-        UserDefaults.standard.set(items.map(\.id), forKey: key)
-    }
-
-    private func applySavedOrder<T: Identifiable>(_ items: [T], key: String) -> [T] where T.ID == String {
-        guard let savedOrder = UserDefaults.standard.stringArray(forKey: key) else { return items }
-        let lookup = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
-        let ordered = savedOrder.compactMap { lookup[$0] }
-        let remaining = items.filter { !savedOrder.contains($0.id) }
-        return ordered + remaining
-    }
+    func moveRoom(fromId: String, toId: String) { orderManager.moveRoom(fromId: fromId, toId: toId, rooms: &rooms) }
+    func moveZone(fromId: String, toId: String) { orderManager.moveZone(fromId: fromId, toId: toId, zones: &zones) }
 
     // MARK: - Private
 
