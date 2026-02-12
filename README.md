@@ -8,7 +8,7 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
 
 - 💡 **Rooms & Zones** — View all your Hue rooms and zones with on/off toggles
 - 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery
-- 🔒 **Secure** — Application key stored in the macOS Keychain
+- 🔒 **Secure** — TLS certificate pinning (TOFU), IP validation, credentials stored locally with restricted permissions
 - 🪶 **Lightweight** — Native SwiftUI, no external dependencies, lives in your menu bar
 
 ## Requirements
@@ -69,6 +69,19 @@ Sources/HueBar/
 └── Utilities/
     └── TrustDelegate.swift      # Self-signed cert handling
 ```
+
+## Security
+
+Credentials (bridge IP and application key) are stored in `~/Library/Application Support/HueBar/credentials.json` with owner-only file permissions (`0600`) in an owner-only directory (`0700`).
+
+We use a file rather than the macOS Keychain because the Keychain prompts for access on every launch with unsigned/ad-hoc signed builds — which is the default when building from source with `swift build`. The Hue application key is a local network token that only works to communicate with your specific bridge on your LAN; it is not a cloud credential or password.
+
+Other security measures:
+
+- **TLS certificate pinning** — the bridge's self-signed certificate is pinned on first connection (trust-on-first-use). Subsequent connections reject certificate changes to prevent MITM attacks.
+- **TLS bypass scoped to bridge IP** — only the known bridge IP bypasses standard certificate validation; all other HTTPS connections (e.g. cloud discovery) use normal CA validation.
+- **IP validation** — bridge IPs are validated as IPv4/IPv6 addresses using `inet_pton`, preventing URL injection via hostnames or paths.
+- **Resource ID sanitization** — API resource IDs are validated against UUID format before use in URL paths, preventing path traversal.
 
 ## License
 
