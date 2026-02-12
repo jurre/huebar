@@ -7,7 +7,10 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
 ## Features
 
 - 💡 **Rooms & Zones** — View all your Hue rooms and zones with on/off toggles
-- 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery
+- 🎚️ **Brightness Control** — Adjust brightness per room/zone with a slider
+- 🎨 **Scene Selection** — Browse and activate saved scenes in a color-coded grid
+- 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles
+- 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery with retry
 - 🔒 **Secure** — TLS certificate pinning (TOFU), IP validation, credentials stored locally with restricted permissions
 - 🪶 **Lightweight** — Native SwiftUI, no external dependencies, lives in your menu bar
 
@@ -41,7 +44,7 @@ swift run
 1. Launch HueBar — a lightbulb icon appears in your menu bar
 2. The app will search for your Hue Bridge on the network
 3. When your bridge is found, click it and press the **link button** on your physical Hue Bridge
-4. That's it — your rooms and zones appear with toggle switches
+4. That's it — your rooms and zones appear with toggle switches, brightness sliders, scene selection, and individual light controls
 
 ## Architecture
 
@@ -55,17 +58,19 @@ HueBar uses the [Hue CLIP API v2](https://developers.meethue.com/develop/hue-api
 Sources/HueBar/
 ├── HueBarApp.swift              # App entry point, MenuBarExtra
 ├── Views/
-│   ├── MenuBarView.swift        # Room/zone list with toggles
+│   ├── MenuBarView.swift        # Room list, detail view, scene grid, light cards
 │   └── SetupView.swift          # Bridge discovery & auth flow
 ├── Models/
 │   ├── Room.swift               # Room model + API response types
 │   ├── Zone.swift               # Zone model
-│   └── GroupedLight.swift       # Grouped light state (on/off, brightness)
+│   ├── GroupedLight.swift       # Grouped light state (on/off, brightness)
+│   ├── Light.swift              # Individual light (on/off, color, temperature)
+│   └── Scene.swift              # Scene model with palette colors (CIE XY + mirek)
 ├── Services/
-│   ├── HueBridgeDiscovery.swift # mDNS + cloud bridge discovery
+│   ├── HueBridgeDiscovery.swift # mDNS + cloud bridge discovery with retry
 │   ├── HueAPIClient.swift       # CLIP v2 API client
 │   ├── HueAuthService.swift     # Link-button authentication
-│   └── CredentialStore.swift    # Credential storage (~/.../Application Support)
+│   └── CredentialStore.swift    # Credential + bridge IP storage
 └── Utilities/
     └── TrustDelegate.swift      # Self-signed cert handling
 ```
