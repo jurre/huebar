@@ -1,6 +1,7 @@
 #!/bin/bash
 # Take screenshots of HueBar for the README.
-# Uses macOS interactive window capture — just click the HueBar window when prompted.
+# Uses macOS interactive window capture with a delay so you can
+# switch to the app and open the right view before capture.
 #
 # Usage:
 #   ./scripts/screenshot.sh              # Capture all three (rooms, room-detail, light-detail)
@@ -11,16 +12,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SCREENSHOT_DIR="screenshots"
+DELAY=3
 mkdir -p "$SCREENSHOT_DIR"
 
 capture() {
     local name="$1"
     local file="$SCREENSHOT_DIR/$name.png"
     echo ""
-    echo "📸 Ready to capture: $name"
-    echo "   Navigate to the '$name' view, then press Enter."
-    read -r
-    echo "   Click the HueBar window..."
+    echo "📸 Capturing '$name' in $DELAY seconds — switch to HueBar now!"
+    sleep "$DELAY"
     screencapture -w -o "$file"
     if [ -f "$file" ]; then
         echo "   ✅ Saved to $file"
@@ -35,7 +35,7 @@ else
     echo "HueBar Screenshot Tool"
     echo "======================"
     echo "This will capture three screenshots for the README."
-    echo "For each one, navigate to the right view, press Enter, then click the HueBar window."
+    echo "After each countdown, click the HueBar window to capture it."
     capture "rooms"
     capture "room-detail"
     capture "light-detail"
