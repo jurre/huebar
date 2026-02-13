@@ -74,6 +74,7 @@ struct RoomDetailView: View {
                         .foregroundStyle(.secondary)
                     Slider(value: $sliderBrightness, in: 1...100)
                         .controlSize(.small)
+                        .tint(Color(red: 0.95, green: 0.65, blue: 0.25))
                     Image(systemName: "sun.max.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)

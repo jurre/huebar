@@ -39,6 +39,7 @@ struct MenuBarView: View {
         .frame(width: 300, height: 550)
         .clipped()
         .preferredColorScheme(.dark)
+        .tint(Color(red: 0.95, green: 0.65, blue: 0.25))
         .onAppear {
             Task { await apiClient.fetchAll(); apiClient.startEventStream() }
         }
@@ -131,10 +132,12 @@ struct MenuBarView: View {
 
                 Button("Sign Out", action: onSignOut)
                     .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
                 Button("Quit HueBar") {
                     NSApplication.shared.terminate(nil)
                 }
                 .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
             }
             .padding(.vertical, 8)
         }
