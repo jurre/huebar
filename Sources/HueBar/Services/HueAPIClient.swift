@@ -113,31 +113,12 @@ final class HueAPIClient {
         try await fetch(path: "light")
     }
 
-    /// Fetch scene images from the bridge and cache their data
+    /// Fetch scene images from the bridge and cache their data.
+    /// Note: Scene images are hosted on the Philips Hue cloud, not the bridge.
+    /// The bridge API does not expose an endpoint to retrieve them.
+    /// Scene cards use palette color gradients instead.
     func fetchSceneImages() async {
-        // Collect unique image resource IDs from scenes
-        let imageRids = Set(scenes.compactMap { $0.metadata.image?.rid })
-        guard !imageRids.isEmpty else { return }
-
-        // Scene images follow the pattern: /clip/v2/image/public/<rid>
-        for rid in imageRids {
-            do {
-                var components = URLComponents()
-                components.scheme = "https"
-                components.host = bridgeIP
-                components.path = "/clip/v2/image/public/\(rid)"
-                guard let url = components.url else { continue }
-
-                var request = URLRequest(url: url)
-                request.setValue(applicationKey, forHTTPHeaderField: "hue-application-key")
-                let (data, response) = try await session.data(for: request)
-                guard let httpResponse = response as? HTTPURLResponse,
-                      (200...299).contains(httpResponse.statusCode) else { continue }
-                sceneImageData[rid] = data
-            } catch {
-                // Skip individual image failures silently
-            }
-        }
+        // No-op: scene images are cloud-hosted and not accessible via the bridge API
     }
 
     /// Get cached image data for a scene, if available

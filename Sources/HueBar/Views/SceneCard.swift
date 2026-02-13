@@ -1,24 +1,13 @@
 import SwiftUI
-import AppKit
 
 struct SceneCard: View {
     let scene: HueScene
     let isActive: Bool
-    var imageData: Data? = nil
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 4) {
-                if let nsImage = sceneImage {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 36, height: 36)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                        .padding(.top, 4)
-                }
+            VStack(spacing: 6) {
                 Spacer()
                 Text(scene.name)
                     .font(.caption2.weight(.medium))
@@ -39,11 +28,6 @@ struct SceneCard: View {
             )
         }
         .buttonStyle(.plain)
-    }
-
-    private var sceneImage: NSImage? {
-        guard let data = imageData else { return nil }
-        return NSImage(data: data)
     }
 
     private var sceneGradient: some ShapeStyle {

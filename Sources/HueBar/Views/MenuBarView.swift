@@ -36,7 +36,7 @@ struct MenuBarView: View {
                     .transition(.move(edge: .leading))
             }
         }
-        .frame(width: 300, height: 450)
+        .frame(width: 300, height: 550)
         .clipped()
         .preferredColorScheme(.dark)
         .onAppear {
