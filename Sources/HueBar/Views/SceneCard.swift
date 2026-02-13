@@ -10,8 +10,9 @@ struct SceneCard: View {
             VStack(spacing: 6) {
                 Spacer()
                 Text(scene.name)
-                    .font(.caption2.weight(.medium))
+                    .font(.system(size: 10, weight: .medium))
                     .lineLimit(2)
+                    .minimumScaleFactor(0.8)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.5), radius: 2, y: 1)

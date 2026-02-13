@@ -8,31 +8,34 @@ struct LightCard: View {
 
     var body: some View {
         Button(action: { onTap?() }) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: ArchetypeIcon.systemName(for: light.metadata.archetype))
-                        .font(.title2)
-                        .foregroundStyle(light.isOn ? .white : .secondary)
+            HStack(spacing: 0) {
+                // Color accent strip
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(light.isOn ? light.displayColor : Color.gray.opacity(0.3))
+                    .frame(width: 4)
+                    .padding(.vertical, 4)
 
-                    Spacer()
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: ArchetypeIcon.systemName(for: light.metadata.archetype))
+                            .font(.title2)
+                            .foregroundStyle(light.isOn ? .white : .secondary)
 
-                    // Color indicator
-                    Circle()
-                        .fill(light.isOn ? light.displayColor : Color.gray.opacity(0.3))
-                        .frame(width: 14, height: 14)
+                        Spacer()
 
-                    Toggle("", isOn: toggleBinding)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .controlSize(.mini)
+                        Toggle("", isOn: toggleBinding)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            .controlSize(.mini)
+                    }
+
+                    Text(light.name)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(light.isOn ? .white : .primary)
+                        .lineLimit(2)
                 }
-
-                Text(light.name)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(light.isOn ? .white : .primary)
-                    .lineLimit(2)
+                .padding(10)
             }
-            .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(cardBackground)
