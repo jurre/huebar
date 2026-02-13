@@ -8,7 +8,7 @@ let package = Package(
         .macOS(.v15),
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-testing.git", exact: "6.1.0"),
+        .package(url: "https://github.com/swiftlang/swift-testing.git", exact: "6.2.3"),
     ],
     targets: [
         .executableTarget(
