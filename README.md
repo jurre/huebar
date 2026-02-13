@@ -5,6 +5,7 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
 <p>
   <img width="300" alt="HueBar rooms" src="screenshots/rooms.png">
   <img width="300" alt="HueBar room detail" src="screenshots/room-detail.png">
+  <img width="300" alt="HueBar light detail" src="screenshots/light-detail.png">
 </p>
 
 ## Features
@@ -12,7 +13,7 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
 - 💡 **Rooms & Zones** — View all your Hue rooms and zones with on/off toggles
 - 🎚️ **Brightness Control** — Adjust brightness per room/zone with a slider
 - 🎨 **Scene Selection** — Browse and activate saved scenes in a color-coded grid
-- 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles
+- 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles, brightness, and color/temperature picker
 - 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery with retry
 - 🔒 **Secure** — TLS certificate pinning (TOFU), IP validation, credentials stored locally with restricted permissions
 - 🪶 **Lightweight** — Native SwiftUI, no external dependencies, lives in your menu bar

@@ -11,6 +11,7 @@ struct RoomDetailView: View {
 
     @State private var sliderBrightness: Double = 0
     @State private var debounceTask: Task<Void, Never>?
+    @State private var selectedLightId: String? = nil
 
     private var groupedLight: GroupedLight? {
         apiClient.groupedLight(for: groupedLightId)
@@ -24,6 +25,11 @@ struct RoomDetailView: View {
         if let room { return apiClient.lights(forRoom: room) }
         if let zone { return apiClient.lights(forZone: zone) }
         return []
+    }
+
+    private var selectedLight: HueLight? {
+        guard let id = selectedLightId else { return nil }
+        return roomLights.first(where: { $0.id == id })
     }
 
     private let sceneColumns = [
@@ -78,24 +84,33 @@ struct RoomDetailView: View {
 
             Divider()
 
-            // Scrollable content: scenes + lights
+            // Scrollable content: light detail or scenes + lights
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Scenes grid
-                    let groupScenes = apiClient.scenes(for: groupId)
-                    if !groupScenes.isEmpty {
-                        Text("MY SCENES")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 4)
+                    // Light detail panel (replaces scenes when a light is selected)
+                    if let selected = selectedLight {
+                        LightDetailView(
+                            apiClient: apiClient,
+                            light: selected,
+                            onDone: { selectedLightId = nil }
+                        )
+                    } else {
+                        // Scenes grid
+                        let groupScenes = apiClient.scenes(for: groupId)
+                        if !groupScenes.isEmpty {
+                            Text("MY SCENES")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
 
-                        LazyVGrid(columns: sceneColumns, spacing: 8) {
-                            ForEach(groupScenes) { scene in
-                                SceneCard(
-                                    scene: scene,
-                                    isActive: apiClient.activeSceneId == scene.id
-                                ) {
-                                    Task { try? await apiClient.recallScene(id: scene.id) }
+                            LazyVGrid(columns: sceneColumns, spacing: 8) {
+                                ForEach(groupScenes) { scene in
+                                    SceneCard(
+                                        scene: scene,
+                                        isActive: apiClient.activeSceneId == scene.id
+                                    ) {
+                                        Task { try? await apiClient.recallScene(id: scene.id) }
+                                    }
                                 }
                             }
                         }
@@ -111,7 +126,12 @@ struct RoomDetailView: View {
 
                         LazyVGrid(columns: lightColumns, spacing: 8) {
                             ForEach(lightsInRoom) { light in
-                                LightCard(apiClient: apiClient, light: light)
+                                LightCard(
+                                    apiClient: apiClient,
+                                    light: light,
+                                    isSelected: selectedLightId == light.id,
+                                    onTap: { selectedLightId = light.id }
+                                )
                             }
                         }
                     }

@@ -36,6 +36,9 @@ struct HueLight: Decodable, Sendable, Identifiable {
         // White-only light fallback
         return CIEXYColor.colorFromMirek(370, brightness: 80)
     }
+
+    var supportsColor: Bool { color != nil }
+    var supportsColorTemperature: Bool { color_temperature != nil }
 }
 
 struct LightMetadata: Decodable, Sendable {

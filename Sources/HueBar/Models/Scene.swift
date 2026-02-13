@@ -56,7 +56,7 @@ struct HueColorValue: Decodable, Sendable {
     let xy: CIEXYColor
 }
 
-struct CIEXYColor: Decodable, Sendable {
+struct CIEXYColor: Codable, Sendable {
     let x: Double
     let y: Double
 }

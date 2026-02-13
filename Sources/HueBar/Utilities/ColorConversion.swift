@@ -131,4 +131,76 @@ extension CIEXYColor {
 
         return Color(red: r, green: g, blue: b)
     }
+
+    /// Convert HSB (hue/saturation/brightness all 0…1) to CIE xy.
+    static func fromHSB(hue: Double, saturation: Double) -> CIEXYColor {
+        // HSB → RGB
+        let c = saturation
+        let h6 = hue * 6.0
+        let x2 = c * (1.0 - abs(h6.truncatingRemainder(dividingBy: 2.0) - 1.0))
+        var r = 0.0, g = 0.0, b = 0.0
+        switch Int(h6) % 6 {
+        case 0: r = c; g = x2; b = 0
+        case 1: r = x2; g = c; b = 0
+        case 2: r = 0; g = c; b = x2
+        case 3: r = 0; g = x2; b = c
+        case 4: r = x2; g = 0; b = c
+        default: r = c; g = 0; b = x2
+        }
+        let m = 1.0 - c
+        r += m; g += m; b += m
+
+        // Inverse gamma (sRGB)
+        func linearize(_ v: Double) -> Double {
+            v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        let lr = linearize(r), lg = linearize(g), lb = linearize(b)
+
+        // RGB → CIE XYZ (D65)
+        let bigX = lr * 0.4124 + lg * 0.3576 + lb * 0.1805
+        let bigY = lr * 0.2126 + lg * 0.7152 + lb * 0.0722
+        let bigZ = lr * 0.0193 + lg * 0.1192 + lb * 0.9505
+        let sum = bigX + bigY + bigZ
+        guard sum > 0 else { return CIEXYColor(x: 0.3127, y: 0.3290) } // D65 white
+        return CIEXYColor(x: bigX / sum, y: bigY / sum)
+    }
+
+    /// Convert CIE xy back to HSB (hue & saturation in 0…1).
+    func toHSB() -> (hue: Double, saturation: Double) {
+        let z = 1.0 - x - y
+        let yVal = 1.0
+        let xVal = (yVal / max(y, 0.0001)) * x
+        let zVal = (yVal / max(y, 0.0001)) * z
+
+        var r =  xVal * 3.2406 + yVal * -1.5372 + zVal * -0.4986
+        var g = xVal * -0.9689 + yVal *  1.8758 + zVal *  0.0415
+        var b =  xVal * 0.0557 + yVal * -0.2040 + zVal *  1.0570
+        r = max(r, 0); g = max(g, 0); b = max(b, 0)
+
+        func gammaCorrect(_ c: Double) -> Double {
+            c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1.0 / 2.4) - 0.055
+        }
+        r = gammaCorrect(r); g = gammaCorrect(g); b = gammaCorrect(b)
+        let maxC = max(r, g, b, 1.0)
+        r /= maxC; g /= maxC; b /= maxC
+
+        // RGB → HSB
+        let rgbMax = max(r, g, b)
+        let rgbMin = min(r, g, b)
+        let delta = rgbMax - rgbMin
+        var hue = 0.0
+        if delta > 0 {
+            if rgbMax == r {
+                hue = (g - b) / delta
+                if hue < 0 { hue += 6 }
+            } else if rgbMax == g {
+                hue = (b - r) / delta + 2
+            } else {
+                hue = (r - g) / delta + 4
+            }
+            hue /= 6
+        }
+        let sat = rgbMax > 0 ? delta / rgbMax : 0
+        return (hue: hue, saturation: sat)
+    }
 }
