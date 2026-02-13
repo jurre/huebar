@@ -19,11 +19,12 @@ struct SceneCard: View {
             .frame(maxWidth: .infinity, minHeight: 64)
             .padding(6)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(sceneGradient)
+                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(isActive ? Color.white : Color.clear, lineWidth: 2)
             )
         }

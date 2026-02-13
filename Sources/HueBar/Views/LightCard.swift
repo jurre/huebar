@@ -34,11 +34,12 @@ struct LightCard: View {
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(cardBackground)
+                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
             )
         }

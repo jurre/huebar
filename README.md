@@ -1,6 +1,6 @@
 # HueBar
 
-A native macOS menubar app for controlling your Philips Hue lights. See your rooms and zones at a glance and toggle them on and off — right from the menu bar.
+A native macOS menubar app for controlling your Philips Hue lights. See your rooms and zones at a glance, adjust brightness and colors, and activate scenes — right from the menu bar.
 
 <p>
   <img width="300" alt="HueBar rooms" src="screenshots/rooms.png">
@@ -13,7 +13,11 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
 - 💡 **Rooms & Zones** — View all your Hue rooms and zones with on/off toggles
 - 🎚️ **Brightness Control** — Adjust brightness per room/zone with a slider
 - 🎨 **Scene Selection** — Browse and activate saved scenes in a color-coded grid
-- 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles, brightness, and color/temperature picker
+- 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles and brightness
+- 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights
+- 📌 **Pin & Reorder** — Pin favorite rooms/zones to the top and reorder them with drag-and-drop
+- 🔄 **Real-time Updates** — Live state updates via Server-Sent Events (SSE) from the Hue Bridge
+- 🚀 **Launch at Login** — Optional auto-start on login, configurable from the menu
 - 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery with retry
 - 🔒 **Secure** — TLS certificate pinning (TOFU), IP validation, credentials stored locally with restricted permissions
 - 🪶 **Lightweight** — Native SwiftUI, no external dependencies, lives in your menu bar
@@ -60,23 +64,41 @@ HueBar uses the [Hue CLIP API v2](https://developers.meethue.com/develop/hue-api
 
 ```
 Sources/HueBar/
-├── HueBarApp.swift              # App entry point, MenuBarExtra
+├── HueBarApp.swift                # App entry point, MenuBarExtra
+├── Info.plist                     # App metadata and permissions
 ├── Views/
-│   ├── MenuBarView.swift        # Room list, detail view, scene grid, light cards
-│   └── SetupView.swift          # Bridge discovery & auth flow
+│   ├── MenuBarView.swift          # Main room list, navigation, footer
+│   ├── RoomDetailView.swift       # Scene grid + light grid for a room/zone
+│   ├── LightDetailView.swift      # Per-light brightness, color wheel, temperature
+│   ├── LightCard.swift            # Individual light card (on/off, icon, color dot)
+│   ├── LightRowView.swift         # Room/zone row card with gradient background
+│   ├── SceneCard.swift            # Scene card with palette gradient
+│   ├── ColorWheelView.swift       # CIE xy color wheel picker
+│   ├── ColorTemperatureSlider.swift # Mirek color temperature slider
+│   └── SetupView.swift            # Bridge discovery & link-button auth flow
 ├── Models/
-│   ├── Room.swift               # Room model + API response types
-│   ├── Zone.swift               # Zone model
-│   ├── GroupedLight.swift       # Grouped light state (on/off, brightness)
-│   ├── Light.swift              # Individual light (on/off, color, temperature)
-│   └── Scene.swift              # Scene model with palette colors (CIE XY + mirek)
+│   ├── Room.swift                 # Room model + API response types
+│   ├── Zone.swift                 # Zone model
+│   ├── GroupedLight.swift          # Grouped light state (on/off, brightness)
+│   ├── Light.swift                # Individual light (on/off, color, temperature)
+│   ├── Scene.swift                # Scene model with palette colors (CIE XY + mirek)
+│   ├── EventStream.swift          # SSE event stream models
+│   ├── HueResponse.swift          # Generic API response envelope
+│   ├── ResourceLink.swift         # API resource reference
+│   └── SharedTypes.swift          # Shared type definitions
 ├── Services/
-│   ├── HueBridgeDiscovery.swift # mDNS + cloud bridge discovery with retry
-│   ├── HueAPIClient.swift       # CLIP v2 API client
-│   ├── HueAuthService.swift     # Link-button authentication
-│   └── CredentialStore.swift    # Credential + bridge IP storage
+│   ├── HueBridgeDiscovery.swift   # mDNS + cloud bridge discovery with retry
+│   ├── HueAPIClient.swift         # CLIP v2 API client with SSE streaming
+│   ├── HueAuthService.swift       # Link-button authentication
+│   ├── EventStreamUpdater.swift   # Real-time state update handler
+│   ├── SSEParser.swift            # Server-Sent Events parser
+│   ├── RoomOrderManager.swift     # Room/zone pinning & ordering persistence
+│   └── CredentialStore.swift      # Credential + bridge IP storage
 └── Utilities/
-    └── TrustDelegate.swift      # Self-signed cert handling
+    ├── ColorConversion.swift      # CIE xy / mirek → SwiftUI Color conversion
+    ├── ArchetypeIcon.swift        # SF Symbol mapping for Hue archetypes
+    ├── TrustDelegate.swift        # Self-signed cert handling (TOFU)
+    └── IPValidation.swift         # Bridge IP address validation
 ```
 
 ## Security

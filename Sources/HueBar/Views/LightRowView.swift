@@ -73,6 +73,7 @@ struct LightRowView: View {
         .background(
             RoundedRectangle(cornerRadius: 14)
                 .fill(cardGradient)
+                .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
         )
         .padding(.horizontal)
         .onAppear {
