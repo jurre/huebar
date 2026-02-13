@@ -96,7 +96,7 @@ struct LightRowView: View {
 
     private var cardGradient: some ShapeStyle {
         guard isOn else {
-            return AnyShapeStyle(Color(red: 0.14, green: 0.12, blue: 0.10))
+            return AnyShapeStyle(Color(red: 0.28, green: 0.24, blue: 0.22))
         }
         let colors = apiClient.activeSceneColors(for: groupId)
         if colors.count >= 2 {
@@ -108,7 +108,7 @@ struct LightRowView: View {
                 LinearGradient(colors: [first, first.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
             )
         } else {
-            return AnyShapeStyle(Color(red: 0.22, green: 0.18, blue: 0.14))
+            return AnyShapeStyle(Color(red: 0.30, green: 0.26, blue: 0.23))
         }
     }
 

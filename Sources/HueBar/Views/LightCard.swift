@@ -47,7 +47,7 @@ struct LightCard: View {
 
     private var cardBackground: some ShapeStyle {
         guard light.isOn else {
-            return AnyShapeStyle(Color(red: 0.18, green: 0.15, blue: 0.12))
+            return AnyShapeStyle(Color(red: 0.28, green: 0.24, blue: 0.22))
         }
         let base = light.currentColor
         return AnyShapeStyle(
