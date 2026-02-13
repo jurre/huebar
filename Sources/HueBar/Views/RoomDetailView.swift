@@ -107,7 +107,8 @@ struct RoomDetailView: View {
                                 ForEach(groupScenes) { scene in
                                     SceneCard(
                                         scene: scene,
-                                        isActive: apiClient.activeSceneId == scene.id
+                                        isActive: apiClient.activeSceneId == scene.id,
+                                        imageData: apiClient.imageData(forScene: scene)
                                     ) {
                                         Task { try? await apiClient.recallScene(id: scene.id) }
                                     }

@@ -35,6 +35,7 @@ struct HueScene: Decodable, Sendable, Identifiable {
 
 struct HueSceneMetadata: Decodable, Sendable {
     let name: String
+    let image: ResourceLink?
 }
 
 struct HueSceneStatus: Decodable, Sendable {

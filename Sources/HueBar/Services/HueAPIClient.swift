@@ -28,6 +28,8 @@ final class HueAPIClient {
     var activeSceneId: String?
     var isLoading: Bool = false
     var lastError: String?
+    /// Cached scene image data keyed by image resource ID
+    var sceneImageData: [String: Data] = [:]
 
     let orderManager = RoomOrderManager()
 
@@ -81,6 +83,9 @@ final class HueAPIClient {
         }
 
         isLoading = false
+
+        // Fetch scene images in the background (non-blocking)
+        await fetchSceneImages()
     }
 
     /// Fetch rooms from the bridge
@@ -106,6 +111,39 @@ final class HueAPIClient {
     /// Fetch all individual lights
     func fetchLights() async throws -> [HueLight] {
         try await fetch(path: "light")
+    }
+
+    /// Fetch scene images from the bridge and cache their data
+    func fetchSceneImages() async {
+        // Collect unique image resource IDs from scenes
+        let imageRids = Set(scenes.compactMap { $0.metadata.image?.rid })
+        guard !imageRids.isEmpty else { return }
+
+        // Scene images follow the pattern: /clip/v2/image/public/<rid>
+        for rid in imageRids {
+            do {
+                var components = URLComponents()
+                components.scheme = "https"
+                components.host = bridgeIP
+                components.path = "/clip/v2/image/public/\(rid)"
+                guard let url = components.url else { continue }
+
+                var request = URLRequest(url: url)
+                request.setValue(applicationKey, forHTTPHeaderField: "hue-application-key")
+                let (data, response) = try await session.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200...299).contains(httpResponse.statusCode) else { continue }
+                sceneImageData[rid] = data
+            } catch {
+                // Skip individual image failures silently
+            }
+        }
+    }
+
+    /// Get cached image data for a scene, if available
+    func imageData(forScene scene: HueScene) -> Data? {
+        guard let imageRid = scene.metadata.image?.rid else { return nil }
+        return sceneImageData[imageRid]
     }
 
     /// Toggle an individual light on/off

@@ -35,7 +35,7 @@ struct LightCard: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(light.isOn ? AnyShapeStyle(light.currentColor.opacity(0.7)) : AnyShapeStyle(Color.gray.opacity(0.15)))
+                    .fill(cardBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
@@ -43,6 +43,20 @@ struct LightCard: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private var cardBackground: some ShapeStyle {
+        guard light.isOn else {
+            return AnyShapeStyle(Color(red: 0.18, green: 0.15, blue: 0.12))
+        }
+        let base = light.currentColor
+        return AnyShapeStyle(
+            LinearGradient(
+                colors: [base.opacity(0.85), base.opacity(0.55)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
 
     private var toggleBinding: Binding<Bool> {

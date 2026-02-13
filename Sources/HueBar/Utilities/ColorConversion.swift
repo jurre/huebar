@@ -26,7 +26,7 @@ extension CIEXYColor {
     }
 
     /// Convert CIE 1931 xy + brightness to sRGB SwiftUI Color.
-    /// Produces warm, muted tones suitable for dark-mode card backgrounds.
+    /// Produces vibrant colors suitable for dark-mode card backgrounds.
     func swiftUIColor(brightness: Double? = nil) -> Color {
         // CIE XY to XYZ (Y = 1.0 for full-range hue extraction)
         let z = 1.0 - x - y
@@ -74,18 +74,16 @@ extension CIEXYColor {
 
         let sat = rgbMax > 0 ? delta / rgbMax : 0
 
-        // Warm-shift: pull all hues toward orange (0.06) via shortest
-        // path on the hue circle. Colors are used as overlays on a warm
-        // brown base, so they can be slightly more vivid.
+        // Gentle warm-shift: very subtle pull toward orange (0.06), only 5%
         let warmTarget = 0.06
         var hueDiff = warmTarget - hue
         if hueDiff > 0.5 { hueDiff -= 1.0 }
         if hueDiff < -0.5 { hueDiff += 1.0 }
-        var warmHue = hue + hueDiff * 0.15
+        var warmHue = hue + hueDiff * 0.05
         if warmHue < 0 { warmHue += 1 }
         if warmHue > 1 { warmHue -= 1 }
 
-        return Color(hue: warmHue, saturation: min(sat, 0.65), brightness: 0.55)
+        return Color(hue: warmHue, saturation: min(sat, 0.85), brightness: 0.70)
     }
 
     /// Convert mirek color temperature to an approximate color.
@@ -123,8 +121,8 @@ extension CIEXYColor {
         g = min(max(g, 0), 1)
         b = min(max(b, 0), 1)
 
-        // Blend toward white for a softer pastel look (40% white mix for temperatures)
-        let mix = 0.4
+        // Blend toward white for a softer look (20% white mix)
+        let mix = 0.2
         r = r + (1.0 - r) * mix
         g = g + (1.0 - g) * mix
         b = b + (1.0 - b) * mix

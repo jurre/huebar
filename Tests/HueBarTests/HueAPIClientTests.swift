@@ -210,9 +210,9 @@ struct HueAPIClientTests {
     @Test func scenesFilteredByGroup() {
         let client = makeClient()
         client.scenes = [
-            HueScene(id: "s1", metadata: HueSceneMetadata(name: "Relax"), group: ResourceLink(rid: "room-1", rtype: "room"), status: nil, palette: nil),
-            HueScene(id: "s2", metadata: HueSceneMetadata(name: "Energize"), group: ResourceLink(rid: "room-1", rtype: "room"), status: nil, palette: nil),
-            HueScene(id: "s3", metadata: HueSceneMetadata(name: "Nightlight"), group: ResourceLink(rid: "room-2", rtype: "room"), status: nil, palette: nil),
+            HueScene(id: "s1", metadata: HueSceneMetadata(name: "Relax", image: nil), group: ResourceLink(rid: "room-1", rtype: "room"), status: nil, palette: nil),
+            HueScene(id: "s2", metadata: HueSceneMetadata(name: "Energize", image: nil), group: ResourceLink(rid: "room-1", rtype: "room"), status: nil, palette: nil),
+            HueScene(id: "s3", metadata: HueSceneMetadata(name: "Nightlight", image: nil), group: ResourceLink(rid: "room-2", rtype: "room"), status: nil, palette: nil),
         ]
 
         let room1Scenes = client.scenes(for: "room-1")
