@@ -22,9 +22,13 @@ final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sen
             return (.performDefaultHandling, nil)
         }
 
-        // Validate against the Hue root CAs
-        SecTrustSetAnchorCertificates(serverTrust, SignifyRootCA.certificates as CFArray)
-        SecTrustSetAnchorCertificatesOnly(serverTrust, true)
+        // Validate against the Hue root CAs — fail closed if configuration fails,
+        // otherwise SecTrust falls back to system CAs and any public cert would pass.
+        guard SecTrustSetAnchorCertificates(serverTrust, SignifyRootCA.certificates as CFArray) == errSecSuccess,
+              SecTrustSetAnchorCertificatesOnly(serverTrust, true) == errSecSuccess
+        else {
+            return (.cancelAuthenticationChallenge, nil)
+        }
 
         // Use basic X.509 policy (no hostname check) — the bridge cert's CN
         // is the bridge ID (e.g. "ECB5FAFFFE123456"), not the IP address.
