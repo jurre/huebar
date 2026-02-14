@@ -26,6 +26,10 @@ final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sen
         SecTrustSetAnchorCertificates(serverTrust, SignifyRootCA.certificates as CFArray)
         SecTrustSetAnchorCertificatesOnly(serverTrust, true)
 
+        // Use basic X.509 policy (no hostname check) — the bridge cert's CN
+        // is the bridge ID (e.g. "ECB5FAFFFE123456"), not the IP address.
+        SecTrustSetPolicies(serverTrust, SecPolicyCreateBasicX509())
+
         var error: CFError?
         let isValid = SecTrustEvaluateWithError(serverTrust, &error)
 
