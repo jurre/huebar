@@ -119,7 +119,7 @@ struct RoomDetailView: View {
                                 ForEach(groupScenes) { scene in
                                     SceneCard(
                                         scene: scene,
-                                        isActive: apiClient.activeSceneId == scene.id
+                                        isActive: apiClient.activeScene(for: groupId)?.id == scene.id
                                     ) {
                                         Task { try? await apiClient.recallScene(id: scene.id) }
                                     }
