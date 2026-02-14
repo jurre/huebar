@@ -48,7 +48,7 @@ fi
 
 echo "Creating app bundle..."
 if [ -z "${APP_DIR:-}" ]; then
-    echo "ERROR: APP_DIR is empty; refusing to remove it." >&2
+    echo "ERROR: APP_DIR is empty or unset; refusing to execute rm command." >&2
     exit 1
 fi
 rm -rf -- "$APP_DIR"

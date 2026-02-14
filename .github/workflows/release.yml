@@ -31,13 +31,14 @@ jobs:
           LATEST=${LATEST:-v0.0.0}
           # Bump patch version
           VERSION=${LATEST#v}
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          # Validate that all components are numbers
-          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
-            echo "Invalid semver tag '$LATEST', defaulting to v0.0.0" >&2
+          # Validate format before parsing
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid semver format '$LATEST', defaulting to 0.0.0 (next release will be v0.0.1)" >&2
             MAJOR=0
             MINOR=0
             PATCH=0
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           fi
           TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
