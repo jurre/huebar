@@ -61,17 +61,14 @@ jobs:
         run: |
           PREV="${{ steps.calc-version.outputs.prev }}"
           
-          # Always start with header
           echo "## HueBar" > notes.txt
           echo "" >> notes.txt
           echo "Native macOS menubar app for controlling Philips Hue lights" >> notes.txt
           echo "" >> notes.txt
           
-          # Generate changelog
           if [ -n "$PREV" ]; then
             COMMITS=$(git log --pretty=format:"- %s" ${PREV}..HEAD)
             
-            # Try LLM-generated summary via GitHub Models
             PROMPT="Summarize these git commits into concise, user-friendly release notes. Group related changes. Use markdown bullet points. Focus on what changed from a user's perspective, not implementation details. Keep it short — max 10 bullet points. Do not include a header, just the bullets.
 
 Commits:
@@ -83,35 +80,17 @@ ${COMMITS}"
               echo "### What's Changed" >> notes.txt
               echo "" >> notes.txt
               echo "$SUMMARY" >> notes.txt
-              echo "" >> notes.txt
             else
-              # Fallback to raw commit messages
               echo "### What's Changed" >> notes.txt
               echo "" >> notes.txt
               echo "$COMMITS" >> notes.txt
-              echo "" >> notes.txt
             fi
           else
-            echo "### Features" >> notes.txt
-            echo "" >> notes.txt
-            echo "- 💡 Room and zone control with on/off toggles" >> notes.txt
-            echo "- 🎚️ Brightness and color adjustment" >> notes.txt
-            echo "- 🎨 Scene activation and browsing" >> notes.txt
-            echo "- 💡 Individual light control" >> notes.txt
-            echo "- ⌨️ Global keyboard shortcuts" >> notes.txt
-            echo "- 😴 Sleep/wake automation" >> notes.txt
-            echo "- 🔄 Real-time updates via SSE" >> notes.txt
-            echo "" >> notes.txt
+            cat .github/release-notes-initial.md >> notes.txt
           fi
           
-          echo "## Installation" >> notes.txt
           echo "" >> notes.txt
-          echo "1. Download **HueBar.zip** from the Assets section below" >> notes.txt
-          echo "2. Unzip and move **HueBar.app** to \`/Applications\`" >> notes.txt
-          echo "3. On first launch, **right-click → Open** (the app is ad-hoc signed, so Gatekeeper will ask for confirmation once)" >> notes.txt
-          echo "4. Connect to your Hue Bridge when prompted" >> notes.txt
-          echo "" >> notes.txt
-          echo "**Requirements:** macOS 15.0 (Sequoia) or later" >> notes.txt
+          cat .github/release-notes-footer.md >> notes.txt
 
       - name: Release
         if: steps.calc-version.outputs.skip == 'no'
