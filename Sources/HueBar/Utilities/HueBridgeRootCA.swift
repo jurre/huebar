@@ -1,5 +1,5 @@
 import Foundation
-import Security
+@preconcurrency import Security
 
 enum HueBridgeRootCA {
     /// Hue Bridge root CA certificates for TLS validation.
