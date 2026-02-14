@@ -6,6 +6,7 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
   <img width="300" alt="HueBar rooms" src="screenshots/rooms.png">
   <img width="300" alt="HueBar room detail" src="screenshots/room-detail.png">
   <img width="300" alt="HueBar light detail" src="screenshots/light-detail.png">
+  <img width="300" alt="HueBar settings" src="screenshots/settings.png">
 </p>
 
 ## Features
@@ -16,6 +17,7 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
 - 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles and brightness
 - 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights
 - 📌 **Pin & Reorder** — Pin favorite rooms/zones to the top and reorder them with drag-and-drop
+- ⌨️ **Global Keyboard Shortcuts** — Assign system-wide hotkeys to toggle any room or zone on/off, even when HueBar isn't focused
 - 🔄 **Real-time Updates** — Live state updates via Server-Sent Events (SSE) from the Hue Bridge
 - 🚀 **Launch at Login** — Optional auto-start on login, configurable from the menu
 - 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery with retry
@@ -54,6 +56,17 @@ swift run
 3. When your bridge is found, click it and press the **link button** on your physical Hue Bridge
 4. That's it — your rooms and zones appear with toggle switches, brightness sliders, scene selection, and individual light controls
 
+## Keyboard Shortcuts
+
+HueBar supports global keyboard shortcuts to toggle rooms and zones without opening the menubar:
+
+1. Click the ⚙️ gear icon in HueBar to open **Settings**
+2. In the **Keyboard Shortcuts** section, click **Add Shortcut**
+3. Select a room or zone, then press your desired key combination (e.g. `⌃⌥L`)
+4. The shortcut works system-wide — press it from any app to toggle that room on or off
+
+Shortcuts are registered via Carbon `RegisterEventHotKey` and do not require Accessibility permissions.
+
 ## Architecture
 
 HueBar uses the [Hue CLIP API v2](https://developers.meethue.com/develop/hue-api-v2/) for modern resource-based control. No external dependencies — only Apple frameworks:
@@ -75,7 +88,10 @@ Sources/HueBar/
 │   ├── SceneCard.swift            # Scene card with palette gradient
 │   ├── ColorWheelView.swift       # CIE xy color wheel picker
 │   ├── ColorTemperatureSlider.swift # Mirek color temperature slider
-│   └── SetupView.swift            # Bridge discovery & link-button auth flow
+│   ├── SetupView.swift            # Bridge discovery & link-button auth flow
+│   ├── SettingsView.swift         # Settings (push-navigation in popover)
+│   ├── ShortcutsSettingsView.swift # Keyboard shortcut management
+│   └── KeyRecorderView.swift      # Key combo capture (NSViewRepresentable)
 ├── Models/
 │   ├── Room.swift                 # Room model + API response types
 │   ├── Zone.swift                 # Zone model
@@ -85,7 +101,8 @@ Sources/HueBar/
 │   ├── EventStream.swift          # SSE event stream models
 │   ├── HueResponse.swift          # Generic API response envelope
 │   ├── ResourceLink.swift         # API resource reference
-│   └── SharedTypes.swift          # Shared type definitions
+│   ├── SharedTypes.swift          # Shared type definitions
+│   └── HotkeyBinding.swift       # Keyboard shortcut model
 ├── Services/
 │   ├── HueBridgeDiscovery.swift   # mDNS + cloud bridge discovery with retry
 │   ├── HueAPIClient.swift         # CLIP v2 API client with SSE streaming
@@ -93,7 +110,8 @@ Sources/HueBar/
 │   ├── EventStreamUpdater.swift   # Real-time state update handler
 │   ├── SSEParser.swift            # Server-Sent Events parser
 │   ├── RoomOrderManager.swift     # Room/zone pinning & ordering persistence
-│   └── CredentialStore.swift      # Credential + bridge IP storage
+│   ├── CredentialStore.swift      # Credential + bridge IP storage
+│   └── HotkeyManager.swift       # Global keyboard shortcut registration
 └── Utilities/
     ├── ColorConversion.swift      # CIE xy / mirek → SwiftUI Color conversion
     ├── ArchetypeIcon.swift        # SF Symbol mapping for Hue archetypes

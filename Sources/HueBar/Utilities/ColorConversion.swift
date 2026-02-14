@@ -1,6 +1,11 @@
 import Foundation
 import SwiftUI
 
+extension Color {
+    /// The warm orange accent used for sliders and toggles.
+    static let hueAccent = Color(red: 0.95, green: 0.65, blue: 0.25)
+}
+
 extension CIEXYColor {
     /// Vivid color for display indicators (colored dots, previews).
     func displayColor() -> Color {

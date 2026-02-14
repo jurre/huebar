@@ -51,6 +51,7 @@ struct LightRowView: View {
 
                 Toggle("", isOn: toggleBinding)
                     .toggleStyle(.switch)
+                    .tint(.hueAccent)
                     .labelsHidden()
                     .disabled(groupedLightId == nil)
             }

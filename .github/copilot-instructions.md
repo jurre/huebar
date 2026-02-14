@@ -17,6 +17,12 @@ HueBar is a native macOS menubar app (SwiftUI, macOS 15+) for controlling Philip
 - Optimistic UI updates for toggles (update local state before API call, revert on failure)
 - `Sendable` compliance throughout for Swift 6 strict concurrency
 
+## Accent Color / Tint
+- **Never** use a global `.tint()` modifier on the view hierarchy — it forces the accent color onto every interactive element (buttons, text links, etc.) making them hard to read
+- Instead, apply `.tint(.hueAccent)` only to specific controls that should be accented: light toggles and brightness sliders
+- `Color.hueAccent` is defined in `ColorConversion.swift`
+- Buttons and navigation text should use default (`.primary`) styling
+
 ## Hue API v2 (CLIP)
 - Base URL: `https://<bridge_ip>/clip/v2/resource/`
 - Auth: `hue-application-key` header

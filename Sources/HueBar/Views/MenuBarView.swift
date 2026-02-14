@@ -1,17 +1,25 @@
 import SwiftUI
-import ServiceManagement
 
 struct MenuBarView: View {
     @Bindable var apiClient: HueAPIClient
+    @Bindable var hotkeyManager: HotkeyManager
     var onSignOut: () -> Void
 
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var selectedRoom: Room?
     @State private var selectedZone: Zone?
+    @State private var showSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
-            if let room = selectedRoom {
+            if showSettings {
+                SettingsView(
+                    apiClient: apiClient,
+                    hotkeyManager: hotkeyManager,
+                    onSignOut: onSignOut,
+                    onBack: { withAnimation(.easeInOut(duration: 0.25)) { showSettings = false } }
+                )
+                .transition(.move(edge: .trailing))
+            } else if let room = selectedRoom {
                 RoomDetailView(
                     apiClient: apiClient,
                     name: room.name,
@@ -39,7 +47,6 @@ struct MenuBarView: View {
         .frame(width: 300, height: 550)
         .clipped()
         .preferredColorScheme(.dark)
-        .tint(Color(red: 0.95, green: 0.65, blue: 0.25))
         .onAppear {
             Task { await apiClient.fetchAll(); apiClient.startEventStream() }
         }
@@ -54,6 +61,12 @@ struct MenuBarView: View {
                 Text("HueBar")
                     .font(.headline)
                 Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) { showSettings = true }
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.borderless)
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
@@ -109,37 +122,6 @@ struct MenuBarView: View {
                 }
             }
 
-            Divider()
-
-            // Footer
-            VStack(spacing: 4) {
-                Toggle("Launch at Login", isOn: $launchAtLogin)
-                    .toggleStyle(.switch)
-                    .onChange(of: launchAtLogin) { _, enabled in
-                        do {
-                            if enabled {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
-                        } catch {
-                            launchAtLogin = SMAppService.mainApp.status == .enabled
-                        }
-                    }
-                    .padding(.horizontal)
-
-                Divider()
-
-                Button("Sign Out", action: onSignOut)
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                Button("Quit HueBar") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 8)
         }
     }
 

@@ -51,8 +51,7 @@ struct RoomDetailView: View {
                     Image(systemName: "chevron.left")
                         .font(.body.weight(.semibold))
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.primary)
+                .buttonStyle(.borderless)
 
                 Text(name)
                     .font(.headline)
@@ -61,6 +60,7 @@ struct RoomDetailView: View {
 
                 Toggle("", isOn: toggleBinding)
                     .toggleStyle(.switch)
+                    .tint(.hueAccent)
                     .labelsHidden()
                     .disabled(groupedLightId == nil)
             }
@@ -75,7 +75,7 @@ struct RoomDetailView: View {
                         .foregroundStyle(.secondary)
                     Slider(value: $sliderBrightness, in: 1...100)
                         .controlSize(.small)
-                        .tint(Color(red: 0.95, green: 0.65, blue: 0.25))
+                        .tint(.hueAccent)
                     Image(systemName: "sun.max.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)
