@@ -51,7 +51,8 @@ struct RoomDetailView: View {
                     Image(systemName: "chevron.left")
                         .font(.body.weight(.semibold))
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
 
                 Text(name)
                     .font(.headline)
