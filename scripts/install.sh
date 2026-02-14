@@ -94,6 +94,7 @@ if [ "$SKIP_INSTALL" = true ]; then
     # CI mode: create zip instead of installing
     echo "Creating distributable ZIP..."
     zip -r "$APP_NAME.zip" "$APP_DIR"
+    rm -rf "$APP_DIR"
     echo "✅ $APP_NAME.zip created for distribution"
 else
     # Local install mode

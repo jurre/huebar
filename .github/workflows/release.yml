@@ -25,11 +25,17 @@ jobs:
         id: calc-version
         shell: bash
         run: |
-          SHORT=$(git rev-parse --short HEAD)
-          TSTAMP=$(date -u +%Y.%m.%d)
-          TAG="v${TSTAMP}-${SHORT}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
           git fetch --tags || true
+          # Find latest semver tag, default to v0.0.0
+          LATEST=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          LATEST=${LATEST:-v0.0.0}
+          # Bump patch version
+          MAJOR=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f1)
+          MINOR=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f2)
+          PATCH=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f3)
+          TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "prev=$LATEST" >> $GITHUB_OUTPUT
           if git show-ref --tags --verify --quiet "refs/tags/$TAG"; then
             echo "skip=yes" >> $GITHUB_OUTPUT
           else
@@ -50,7 +56,7 @@ jobs:
       - name: Notes
         if: steps.calc-version.outputs.skip == 'no'
         run: |
-          PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          PREV="${{ steps.calc-version.outputs.prev }}"
           
           # Always start with header
           echo "## HueBar" > notes.txt
@@ -80,8 +86,8 @@ jobs:
           echo "## Installation" >> notes.txt
           echo "" >> notes.txt
           echo "1. Download **HueBar.zip** from the Assets section below" >> notes.txt
-          echo "2. Unzip and move **HueBar.app** to `/Applications`" >> notes.txt
-          echo "3. Launch HueBar from Spotlight or Finder" >> notes.txt
+          echo "2. Unzip and move **HueBar.app** to \`/Applications\`" >> notes.txt
+          echo "3. On first launch, **right-click → Open** (the app is ad-hoc signed, so Gatekeeper will ask for confirmation once)" >> notes.txt
           echo "4. Connect to your Hue Bridge when prompted" >> notes.txt
           echo "" >> notes.txt
           echo "**Requirements:** macOS 15.0 (Sequoia) or later" >> notes.txt
