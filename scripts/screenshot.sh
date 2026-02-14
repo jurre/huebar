@@ -34,11 +34,12 @@ if [ $# -ge 1 ]; then
 else
     echo "HueBar Screenshot Tool"
     echo "======================"
-    echo "This will capture three screenshots for the README."
+    echo "This will capture four screenshots for the README."
     echo "After each countdown, click the HueBar window to capture it."
     capture "rooms"
     capture "room-detail"
     capture "light-detail"
+    capture "settings"
     echo ""
     echo "🎉 Done! Screenshots saved to $SCREENSHOT_DIR/"
 fi
