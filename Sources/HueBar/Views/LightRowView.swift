@@ -48,12 +48,15 @@ struct LightRowView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("\(name), \(isOn ? "on" : "off")")
+                .accessibilityHint("Open room details")
 
                 Toggle("", isOn: toggleBinding)
                     .toggleStyle(.switch)
                     .tint(.hueAccent)
                     .labelsHidden()
                     .disabled(groupedLightId == nil)
+                    .accessibilityLabel("Toggle \(name)")
             }
 
             // Brightness slider (always visible for consistent card height)
@@ -65,6 +68,8 @@ struct LightRowView: View {
                     .controlSize(.small)
                     .tint(isOn ? .white.opacity(0.8) : .white.opacity(0.15))
                     .disabled(!isOn)
+                    .accessibilityLabel("\(name) brightness")
+                    .accessibilityValue("\(Int(sliderBrightness))%")
                 Image(systemName: "sun.max.fill")
                     .font(.caption2)
                     .foregroundStyle(isOn ? .white.opacity(0.6) : .white.opacity(0.2))

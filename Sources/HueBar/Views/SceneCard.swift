@@ -30,6 +30,7 @@ struct SceneCard: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(scene.name) scene\(isActive ? ", active" : "")")
     }
 
     private var sceneGradient: some ShapeStyle {
