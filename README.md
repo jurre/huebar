@@ -36,7 +36,13 @@ Philips discontinued the official Hue macOS app years ago, and most third-party 
 
 ## Installation
 
-### Install as app (recommended)
+### Download a release (easiest)
+
+1. Go to [Releases](https://github.com/jurre/huebar/releases) and download the latest `HueBar.zip`
+2. Unzip the file and move `HueBar.app` to your `/Applications` folder
+3. Launch HueBar from Spotlight or Finder
+
+### Install from source
 
 ```bash
 git clone https://github.com/jurre/huebar.git
