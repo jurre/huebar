@@ -3,6 +3,7 @@ import Testing
 @testable import HueBar
 
 @Suite("SSEParser")
+@MainActor
 struct SSEParserTests {
     private func makeEventJSON(id: String = "ev-1") -> String {
         """
@@ -90,5 +91,49 @@ struct SSEParserTests {
         // Blank line after reset should yield nil (buffer was cleared)
         let events = parser.processLine("")
         #expect(events == nil)
+    }
+
+    @Test("Malformed JSON in data lines returns nil, does not crash")
+    func malformedJSON() {
+        let parser = SSEParser()
+        _ = parser.processLine("data: {not valid json!!!")
+        let events = parser.processLine("")
+        #expect(events == nil)
+    }
+
+    @Test("data: without trailing space (5-char prefix) is handled")
+    func dataWithoutTrailingSpace() {
+        let parser = SSEParser()
+        // "data:" with no space after the colon
+        _ = parser.processLine("data:\(makeEventJSON())")
+        let events = parser.processLine("")
+        #expect(events != nil)
+        #expect(events?.count == 1)
+        #expect(events?[0].id == "ev-1")
+    }
+
+    @Test("Carriage return as blank line delimiter triggers event dispatch")
+    func carriageReturnDelimiter() {
+        let parser = SSEParser()
+        _ = parser.processLine("data: \(makeEventJSON())")
+        let events = parser.processLine("\r")
+        #expect(events != nil)
+        #expect(events?.count == 1)
+        #expect(events?[0].id == "ev-1")
+    }
+
+    @Test("Consecutive blank lines do not crash or produce duplicate events")
+    func consecutiveBlankLines() {
+        let parser = SSEParser()
+        _ = parser.processLine("data: \(makeEventJSON())")
+
+        let first = parser.processLine("")
+        #expect(first != nil)
+        #expect(first?.count == 1)
+
+        // Subsequent blank lines with no new data should return nil
+        #expect(parser.processLine("") == nil)
+        #expect(parser.processLine("") == nil)
+        #expect(parser.processLine("\r") == nil)
     }
 }

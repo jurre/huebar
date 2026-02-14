@@ -22,7 +22,7 @@ struct EventStreamTests {
 
         let resource = event.data[0]
         #expect(resource.id == "light-1")
-        #expect(resource.resourceType == "light")
+        #expect(resource.type == "light")
         #expect(resource.on?.on == true)
         #expect(resource.dimming?.brightness == 75.5)
     }
@@ -35,7 +35,7 @@ struct EventStreamTests {
 
         let events = try decoder.decode([HueEvent].self, from: json)
         let resource = events[0].data[0]
-        #expect(resource.resourceType == "grouped_light")
+        #expect(resource.type == "grouped_light")
         #expect(resource.on?.on == false)
         #expect(resource.dimming?.brightness == 50.0)
     }
@@ -48,8 +48,8 @@ struct EventStreamTests {
 
         let events = try decoder.decode([HueEvent].self, from: json)
         let resource = events[0].data[0]
-        #expect(resource.resourceType == "scene")
-        #expect(resource.status?.active == "inactive")
+        #expect(resource.type == "scene")
+        #expect(resource.status?.active == .inactive)
         #expect(resource.on == nil)
     }
 
@@ -77,7 +77,7 @@ struct EventStreamTests {
         let resource = events[0].data[0]
         #expect(resource.color?.xy.x == 0.3127)
         #expect(resource.color?.xy.y == 0.3290)
-        #expect(resource.color_temperature?.mirek == 250)
-        #expect(resource.color_temperature?.mirek_valid == true)
+        #expect(resource.colorTemperature?.mirek == 250)
+        #expect(resource.colorTemperature?.mirekValid == true)
     }
 }

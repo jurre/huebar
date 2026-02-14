@@ -33,7 +33,7 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     // General section
-                    sectionHeader("GENERAL")
+                    SectionHeaderView(title: "GENERAL")
 
                     VStack(spacing: 12) {
                         Toggle("Launch at Login", isOn: $launchAtLogin)
@@ -53,13 +53,13 @@ struct SettingsView: View {
                     .padding(.horizontal)
 
                     // Shortcuts section
-                    sectionHeader("SHORTCUTS")
+                    SectionHeaderView(title: "SHORTCUTS")
 
                     ShortcutsSettingsView(hotkeyManager: hotkeyManager, apiClient: apiClient)
                         .padding(.horizontal)
 
                     // Sleep / Wake section
-                    sectionHeader("SLEEP / WAKE")
+                    SectionHeaderView(title: "SLEEP / WAKE")
 
                     SleepWakeSettingsView(sleepWakeManager: sleepWakeManager, apiClient: apiClient)
                         .padding(.horizontal)
@@ -87,16 +87,4 @@ struct SettingsView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        HStack(spacing: 6) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.5)
-                .foregroundStyle(.secondary)
-            Rectangle()
-                .fill(Color.secondary.opacity(0.2))
-                .frame(height: 0.5)
-        }
-        .padding(.horizontal, 4)
-    }
 }

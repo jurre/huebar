@@ -50,6 +50,7 @@ struct CredentialStoreTests {
     @Test func deleteWhenNothingStored() {
         CredentialStore.delete()
         CredentialStore.delete()
+        #expect(CredentialStore.load() == nil)
     }
 
     @Test func certHashSavedBeforeCredentials() throws {

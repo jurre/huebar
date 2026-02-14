@@ -8,7 +8,12 @@ struct HueLight: Decodable, Sendable, Identifiable {
     let on: OnState
     let dimming: DimmingState?
     let color: LightColor?
-    let color_temperature: LightColorTemperature?
+    let colorTemperature: LightColorTemperature?
+
+    enum CodingKeys: String, CodingKey {
+        case id, owner, metadata, on, dimming, color
+        case colorTemperature = "color_temperature"
+    }
 
     var name: String { metadata.name }
     var isOn: Bool { on.on }
@@ -19,10 +24,10 @@ struct HueLight: Decodable, Sendable, Identifiable {
         if let xy = color?.xy {
             return xy.displayColor()
         }
-        if let mirek = color_temperature?.mirek {
-            return CIEXYColor.colorFromMirek(mirek, brightness: 80)
+        if let mirek = colorTemperature?.mirek {
+            return CIEXYColor.colorFromMirek(mirek)
         }
-        return CIEXYColor.colorFromMirek(370, brightness: 80)
+        return CIEXYColor.colorFromMirek(370)
     }
 
     /// Current color as a SwiftUI Color for card backgrounds
@@ -30,15 +35,15 @@ struct HueLight: Decodable, Sendable, Identifiable {
         if let xy = color?.xy {
             return xy.swiftUIColor()
         }
-        if let mirek = color_temperature?.mirek {
-            return CIEXYColor.colorFromMirek(mirek, brightness: 80)
+        if let mirek = colorTemperature?.mirek {
+            return CIEXYColor.colorFromMirek(mirek)
         }
         // White-only light fallback
-        return CIEXYColor.colorFromMirek(370, brightness: 80)
+        return CIEXYColor.colorFromMirek(370)
     }
 
     var supportsColor: Bool { color != nil }
-    var supportsColorTemperature: Bool { color_temperature != nil }
+    var supportsColorTemperature: Bool { colorTemperature != nil }
 }
 
 struct LightMetadata: Decodable, Sendable {
@@ -52,5 +57,10 @@ struct LightColor: Decodable, Sendable {
 
 struct LightColorTemperature: Decodable, Sendable {
     let mirek: Int?
-    let mirek_valid: Bool?
+    let mirekValid: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case mirek
+        case mirekValid = "mirek_valid"
+    }
 }

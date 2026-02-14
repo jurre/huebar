@@ -19,11 +19,14 @@ struct HueEventResource: Decodable, Sendable {
     let on: OnState?
     let dimming: DimmingState?
     let color: HueEventColor?
-    let color_temperature: HueEventColorTemp?
+    let colorTemperature: HueEventColorTemp?
     let status: HueSceneStatus?
     let metadata: HueEventMetadata?
 
-    var resourceType: String { type }
+    enum CodingKeys: String, CodingKey {
+        case id, type, on, dimming, color, status, metadata
+        case colorTemperature = "color_temperature"
+    }
 }
 
 struct HueEventColor: Decodable, Sendable {
@@ -32,7 +35,12 @@ struct HueEventColor: Decodable, Sendable {
 
 struct HueEventColorTemp: Decodable, Sendable {
     let mirek: Int?
-    let mirek_valid: Bool?
+    let mirekValid: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case mirek
+        case mirekValid = "mirek_valid"
+    }
 }
 
 struct HueEventMetadata: Decodable, Sendable {

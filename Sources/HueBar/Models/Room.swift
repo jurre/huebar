@@ -1,8 +1,8 @@
 import Foundation
 
-struct Room: Decodable, Sendable, Identifiable {
+struct Room: LightGroup {
     let id: String
-    let metadata: RoomMetadata
+    let metadata: GroupMetadata
     let services: [ResourceLink]
     let children: [ResourceLink]
     
@@ -12,9 +12,4 @@ struct Room: Decodable, Sendable, Identifiable {
     var groupedLightId: String? {
         services.first(where: { $0.rtype == "grouped_light" })?.rid
     }
-}
-
-struct RoomMetadata: Decodable, Sendable {
-    let name: String
-    let archetype: String?
 }

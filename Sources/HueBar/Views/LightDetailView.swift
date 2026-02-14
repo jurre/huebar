@@ -32,10 +32,7 @@ struct LightDetailView: View {
             // Color wheel for full-color lights
             if light.supportsColor {
                 ColorWheelView(xy: $colorXY) { newXY in
-                    colorDebounce?.cancel()
-                    colorDebounce = Task {
-                        try? await Task.sleep(for: .milliseconds(200))
-                        guard !Task.isCancelled else { return }
+                    debounce(task: &colorDebounce) {
                         try? await apiClient.setLightColor(id: light.id, xy: newXY)
                     }
                 }
@@ -45,10 +42,7 @@ struct LightDetailView: View {
             // Color temperature slider for temp-only lights (not shown if full color is available)
             if !light.supportsColor && light.supportsColorTemperature {
                 ColorTemperatureSlider(mirek: $colorTempMirek) { newMirek in
-                    tempDebounce?.cancel()
-                    tempDebounce = Task {
-                        try? await Task.sleep(for: .milliseconds(200))
-                        guard !Task.isCancelled else { return }
+                    debounce(task: &tempDebounce) {
                         try? await apiClient.setLightColorTemperature(id: light.id, mirek: newMirek)
                     }
                 }
@@ -72,12 +66,14 @@ struct LightDetailView: View {
         .onAppear { syncFromLight() }
         .onChange(of: light.id) { _, _ in syncFromLight() }
         .onChange(of: sliderBrightness) { _, newValue in
-            brightnessDebounce?.cancel()
-            brightnessDebounce = Task {
-                try? await Task.sleep(for: .milliseconds(200))
-                guard !Task.isCancelled else { return }
+            debounce(task: &brightnessDebounce) {
                 try? await apiClient.setLightBrightness(id: light.id, brightness: newValue)
             }
+        }
+        .onDisappear {
+            brightnessDebounce?.cancel()
+            colorDebounce?.cancel()
+            tempDebounce?.cancel()
         }
     }
 
@@ -86,7 +82,7 @@ struct LightDetailView: View {
         if let xy = light.color?.xy {
             colorXY = xy
         }
-        if let mirek = light.color_temperature?.mirek {
+        if let mirek = light.colorTemperature?.mirek {
             colorTempMirek = mirek
         }
     }

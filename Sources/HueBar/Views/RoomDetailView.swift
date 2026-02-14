@@ -1,17 +1,29 @@
 import SwiftUI
 
 struct RoomDetailView: View {
+    enum GroupTarget {
+        case room(Room)
+        case zone(Zone)
+    }
+
     @Bindable var apiClient: HueAPIClient
-    let name: String
-    let groupedLightId: String?
-    let groupId: String
-    var room: Room? = nil
-    var zone: Zone? = nil
+    let target: GroupTarget
     let onBack: () -> Void
 
     @State private var sliderBrightness: Double = 0
     @State private var debounceTask: Task<Void, Never>?
     @State private var selectedLightId: String? = nil
+
+    private var group: any LightGroup {
+        switch target {
+        case .room(let room): return room
+        case .zone(let zone): return zone
+        }
+    }
+
+    private var name: String { group.name }
+    private var groupedLightId: String? { group.groupedLightId }
+    private var groupId: String { group.id }
 
     private var groupedLight: GroupedLight? {
         apiClient.groupedLight(for: groupedLightId)
@@ -22,9 +34,10 @@ struct RoomDetailView: View {
     }
 
     private var roomLights: [HueLight] {
-        if let room { return apiClient.lights(forRoom: room) }
-        if let zone { return apiClient.lights(forZone: zone) }
-        return []
+        switch target {
+        case .room(let room): return apiClient.lights(forRoom: room)
+        case .zone(let zone): return apiClient.lights(forZone: zone)
+        }
     }
 
     private var selectedLight: HueLight? {
@@ -100,7 +113,7 @@ struct RoomDetailView: View {
                         // Scenes grid
                         let groupScenes = apiClient.scenes(for: groupId)
                         if !groupScenes.isEmpty {
-                            sectionHeader("MY SCENES")
+                            SectionHeaderView(title: "MY SCENES")
 
                             LazyVGrid(columns: sceneColumns, spacing: 8) {
                                 ForEach(groupScenes) { scene in
@@ -118,7 +131,7 @@ struct RoomDetailView: View {
                     // Lights grid
                     let lightsInRoom = roomLights
                     if !lightsInRoom.isEmpty {
-                        sectionHeader("LIGHTS")
+                        SectionHeaderView(title: "LIGHTS")
 
                         LazyVGrid(columns: lightColumns, spacing: 8) {
                             ForEach(lightsInRoom) { light in
@@ -146,27 +159,13 @@ struct RoomDetailView: View {
         }
         .onChange(of: sliderBrightness) { _, newValue in
             guard let id = groupedLightId else { return }
-            debounceTask?.cancel()
-            debounceTask = Task {
-                try? await Task.sleep(for: .milliseconds(200))
-                guard !Task.isCancelled else { return }
+            debounce(task: &debounceTask) {
                 try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
             }
         }
+        .onDisappear { debounceTask?.cancel() }
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        HStack(spacing: 6) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.5)
-                .foregroundStyle(.secondary)
-            Rectangle()
-                .fill(Color.secondary.opacity(0.2))
-                .frame(height: 0.5)
-        }
-        .padding(.horizontal, 4)
-    }
 
     private var toggleBinding: Binding<Bool> {
         Binding(
