@@ -321,20 +321,21 @@ final class HueAPIClient {
         return nil
     }
 
+    /// The scene whose palette is displayed on a room/zone card.
+    /// Prefers the active scene, falls back to the first scene with palette entries.
+    func displayScene(for groupId: String?) -> HueScene? {
+        guard let groupId else { return nil }
+        if let active = activeScene(for: groupId), !active.paletteEntries.isEmpty {
+            return active
+        }
+        let groupScenes = scenes.filter { $0.group.rid == groupId }
+        return groupScenes.first(where: { !$0.paletteEntries.isEmpty })
+    }
+
     /// Get the raw palette entries for a room/zone card.
     /// Prefers the active scene, falls back to the first scene with palette entries.
     func activeScenePaletteEntries(for groupId: String?) -> [ScenePaletteEntry] {
-        guard let groupId else { return [] }
-        // Use active scene if we know it
-        if let active = activeScene(for: groupId), !active.paletteEntries.isEmpty {
-            return active.paletteEntries
-        }
-        // Fall back: use the first scene for this group that has palette entries
-        let groupScenes = scenes.filter { $0.group.rid == groupId }
-        if let withPalette = groupScenes.first(where: { !$0.paletteEntries.isEmpty }) {
-            return withPalette.paletteEntries
-        }
-        return []
+        displayScene(for: groupId)?.paletteEntries ?? []
     }
 
     /// Recall (activate) a scene

@@ -57,7 +57,7 @@ struct LightRowView: View {
             }
 
             // Active scene indicator
-            if let sceneName = apiClient.activeScene(for: groupId)?.name, isOn {
+            if let sceneName = apiClient.displayScene(for: groupId)?.name, isOn {
                 Text(sceneName)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.7))
