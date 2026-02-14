@@ -69,14 +69,17 @@
       font-weight: 700;
       letter-spacing: -1px;
       margin-bottom: 16px;
-      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end), #e0e0e0);
+    }
+
+    .hero h1 .hue {
+      background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
 
-    .hero h1 span {
-      -webkit-text-fill-color: transparent;
+    .hero h1 .bar {
+      color: var(--text);
     }
 
     .hero p {
@@ -382,7 +385,7 @@
   <section class="hero">
     <div class="container">
       <img src="icon.png" alt="HueBar" class="hero-icon">
-      <h1>Hue<span>Bar</span></h1>
+      <h1><span class="hue">Hue</span><span class="bar">Bar</span></h1>
       <p>Control your Philips Hue lights from your Mac menu bar. Free, open-source, and built with SwiftUI.</p>
       <div class="hero-buttons">
         <a href="https://github.com/jurre/huebar#installation" class="btn btn-primary">Get Started</a>
