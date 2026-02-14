@@ -6,11 +6,18 @@ BUNDLE_ID="com.jurre.huebar"
 APP_DIR="$APP_NAME.app"
 INSTALL_DIR="/Applications"
 
-# Quit any running instance first
+# Quit any running instance first, remember if it was running
+WAS_RUNNING=false
 if pgrep -x "$APP_NAME" > /dev/null 2>&1; then
+    WAS_RUNNING=true
     echo "Stopping running $APP_NAME..."
-    pkill -x "$APP_NAME" || true
+    osascript -e "tell application \"$APP_NAME\" to quit" 2>/dev/null || true
     sleep 1
+    # Force kill if still running
+    if pgrep -x "$APP_NAME" > /dev/null 2>&1; then
+        kill "$(pgrep -x "$APP_NAME")" 2>/dev/null || true
+        sleep 1
+    fi
 fi
 
 echo "Building release binary..."
@@ -69,5 +76,11 @@ rm -rf "$APP_DIR"
 
 echo ""
 echo "✅ $APP_NAME.app installed to $INSTALL_DIR"
-echo "   Open it from Spotlight, Finder, or run:"
-echo "   open /Applications/$APP_DIR"
+
+if [ "$WAS_RUNNING" = true ]; then
+    echo "Re-opening $APP_NAME..."
+    open "$INSTALL_DIR/$APP_DIR"
+else
+    echo "   Open it from Spotlight, Finder, or run:"
+    echo "   open /Applications/$APP_DIR"
+fi
