@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Sources/**'
+      - 'Resources/**'
+      - 'Package.swift'
+      - 'Package.resolved'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version
+        id: calc-version
+        shell: bash
+        run: |
+          git fetch --tags || true
+          # Find latest semver tag, default to v0.0.0
+          LATEST=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+          LATEST=${LATEST:-v0.0.0}
+          # Bump patch version
+          VERSION=${LATEST#v}
+          # Validate format before parsing
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid semver format '$LATEST', defaulting to 0.0.0 (next release will be v0.0.1)" >&2
+            MAJOR=0
+            MINOR=0
+            PATCH=0
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          fi
+          TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "prev=$LATEST" >> $GITHUB_OUTPUT
+          if git show-ref --tags --verify --quiet "refs/tags/$TAG"; then
+            echo "skip=yes" >> $GITHUB_OUTPUT
+            echo "Tag $TAG already exists, release will be skipped"
+          else
+            echo "skip=no" >> $GITHUB_OUTPUT
+            echo "Will create new release with tag $TAG"
+          fi
+
+      - name: Skip release (tag already exists)
+        if: steps.calc-version.outputs.skip == 'yes'
+        run: |
+          echo "Release skipped because tag '${{ steps.calc-version.outputs.tag }}' already exists."
+          echo "No build, packaging, or release steps were executed."
+      - name: Skip release (tag already exists)
+        if: steps.calc-version.outputs.skip == 'yes'
+        run: |
+          echo "Release skipped because tag '${{ steps.calc-version.outputs.tag }}' already exists."
+          echo "No build, packaging, or release steps were executed."
+
+      - name: Build
+        if: steps.calc-version.outputs.skip == 'no'
+        run: swift build -c release
+
+      - name: Package
+        if: steps.calc-version.outputs.skip == 'no'
+        env:
+          VER: ${{ steps.calc-version.outputs.tag }}
+        run: |
+          ./scripts/install.sh --no-install --version "$VER"
+
+      - name: Notes
+        if: steps.calc-version.outputs.skip == 'no'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREV="${{ steps.calc-version.outputs.prev }}"
+          
+          echo "## HueBar" > notes.txt
+          echo "" >> notes.txt
+          echo "Native macOS menubar app for controlling Philips Hue lights" >> notes.txt
+          echo "" >> notes.txt
+          
+          if [ -n "$PREV" ] && [ "$PREV" != "v0.0.0" ]; then
+            # Use GitHub's automatic release notes generation API
+            GENERATED_NOTES=$(gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              /repos/${{ github.repository }}/releases/generate-notes \
+              -f tag_name="${{ steps.calc-version.outputs.tag }}" \
+              -f previous_tag_name="$PREV" \
+              --jq '.body' 2>/dev/null) || GENERATED_NOTES=""
+            
+            if [ -n "$GENERATED_NOTES" ]; then
+              echo "### What's Changed" >> notes.txt
+              echo "" >> notes.txt
+              echo "$GENERATED_NOTES" >> notes.txt
+            else
+              # Fallback to simple commit list
+              echo "### What's Changed" >> notes.txt
+              echo "" >> notes.txt
+              git log --pretty=format:"- %s" ${PREV}..HEAD >> notes.txt
+            fi
+          else
+            cat .github/release-notes-initial.md >> notes.txt
+          fi
+          
+          echo "" >> notes.txt
+          cat .github/release-notes-footer.md >> notes.txt
+
+      - name: Release
+        if: steps.calc-version.outputs.skip == 'no'
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191
+        with:
+          tag_name: ${{ steps.calc-version.outputs.tag }}
+          name: ${{ steps.calc-version.outputs.tag }}
+          body_path: notes.txt
+          files: HueBar.zip
