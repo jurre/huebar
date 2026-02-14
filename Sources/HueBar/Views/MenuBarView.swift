@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarView: View {
     @Bindable var apiClient: HueAPIClient
     @Bindable var hotkeyManager: HotkeyManager
+    @Bindable var sleepWakeManager: SleepWakeManager
     var onSignOut: () -> Void
 
     @State private var selectedRoom: Room?
@@ -15,6 +16,7 @@ struct MenuBarView: View {
                 SettingsView(
                     apiClient: apiClient,
                     hotkeyManager: hotkeyManager,
+                    sleepWakeManager: sleepWakeManager,
                     onSignOut: onSignOut,
                     onBack: { withAnimation(.easeInOut(duration: 0.25)) { showSettings = false } }
                 )

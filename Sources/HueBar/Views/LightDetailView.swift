@@ -62,6 +62,7 @@ struct LightDetailView: View {
                         .foregroundStyle(.secondary)
                     Slider(value: $sliderBrightness, in: 1...100)
                         .controlSize(.small)
+                        .tint(.hueAccent)
                     Image(systemName: "sun.max.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)

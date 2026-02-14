@@ -4,6 +4,7 @@ import ServiceManagement
 struct SettingsView: View {
     @Bindable var apiClient: HueAPIClient
     @Bindable var hotkeyManager: HotkeyManager
+    @Bindable var sleepWakeManager: SleepWakeManager
     var onSignOut: () -> Void
     var onBack: () -> Void
 
@@ -55,6 +56,12 @@ struct SettingsView: View {
                     sectionHeader("SHORTCUTS")
 
                     ShortcutsSettingsView(hotkeyManager: hotkeyManager, apiClient: apiClient)
+                        .padding(.horizontal)
+
+                    // Sleep / Wake section
+                    sectionHeader("SLEEP / WAKE")
+
+                    SleepWakeSettingsView(sleepWakeManager: sleepWakeManager, apiClient: apiClient)
                         .padding(.horizontal)
 
                     Divider()

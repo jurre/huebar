@@ -18,6 +18,7 @@ A native macOS menubar app for controlling your Philips Hue lights. See your roo
 - 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights
 - 📌 **Pin & Reorder** — Pin favorite rooms/zones to the top and reorder them with drag-and-drop
 - ⌨️ **Global Keyboard Shortcuts** — Assign system-wide hotkeys to toggle any room or zone on/off, even when HueBar isn't focused
+- 😴 **Sleep/Wake Automation** — Automatically turn rooms off when your Mac sleeps and back on when it wakes, with optional scene recall
 - 🔄 **Real-time Updates** — Live state updates via Server-Sent Events (SSE) from the Hue Bridge
 - 🚀 **Launch at Login** — Optional auto-start on login, configurable from the menu
 - 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery with retry
@@ -67,6 +68,18 @@ HueBar supports global keyboard shortcuts to toggle rooms and zones without open
 
 Shortcuts are registered via Carbon `RegisterEventHotKey` and do not require Accessibility permissions.
 
+## Sleep/Wake Automation
+
+HueBar can automatically control rooms when your Mac sleeps and wakes — great for office lights or desk lamps:
+
+1. Click the ⚙️ gear icon in HueBar to open **Settings**
+2. In the **Sleep / Wake** section, click **Add Rule**
+3. Select a room or zone, then choose a mode:
+   - **Sleep** — turn off when Mac sleeps
+   - **Wake** — turn on when Mac wakes
+   - **Both** — turn off on sleep, turn on on wake
+4. Optionally select a scene to recall on wake instead of just turning the lights on
+
 ## Architecture
 
 HueBar uses the [Hue CLIP API v2](https://developers.meethue.com/develop/hue-api-v2/) for modern resource-based control. No external dependencies — only Apple frameworks:
@@ -91,6 +104,7 @@ Sources/HueBar/
 │   ├── SetupView.swift            # Bridge discovery & link-button auth flow
 │   ├── SettingsView.swift         # Settings (push-navigation in popover)
 │   ├── ShortcutsSettingsView.swift # Keyboard shortcut management
+│   ├── SleepWakeSettingsView.swift # Sleep/wake automation management
 │   └── KeyRecorderView.swift      # Key combo capture (NSViewRepresentable)
 ├── Models/
 │   ├── Room.swift                 # Room model + API response types
@@ -102,7 +116,8 @@ Sources/HueBar/
 │   ├── HueResponse.swift          # Generic API response envelope
 │   ├── ResourceLink.swift         # API resource reference
 │   ├── SharedTypes.swift          # Shared type definitions
-│   └── HotkeyBinding.swift       # Keyboard shortcut model
+│   ├── HotkeyBinding.swift        # Keyboard shortcut model
+│   └── SleepWakeConfig.swift      # Sleep/wake automation config
 ├── Services/
 │   ├── HueBridgeDiscovery.swift   # mDNS + cloud bridge discovery with retry
 │   ├── HueAPIClient.swift         # CLIP v2 API client with SSE streaming
@@ -111,7 +126,8 @@ Sources/HueBar/
 │   ├── SSEParser.swift            # Server-Sent Events parser
 │   ├── RoomOrderManager.swift     # Room/zone pinning & ordering persistence
 │   ├── CredentialStore.swift      # Credential + bridge IP storage
-│   └── HotkeyManager.swift       # Global keyboard shortcut registration
+│   ├── HotkeyManager.swift        # Global keyboard shortcut registration
+│   └── SleepWakeManager.swift     # Sleep/wake notification observer
 └── Utilities/
     ├── ColorConversion.swift      # CIE xy / mirek → SwiftUI Color conversion
     ├── ArchetypeIcon.swift        # SF Symbol mapping for Hue archetypes

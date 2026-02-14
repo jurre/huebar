@@ -6,6 +6,7 @@ struct HueBarApp: App {
     @State private var authService = HueAuthService()
     @State private var apiClient: HueAPIClient?
     @State private var hotkeyManager = HotkeyManager()
+    @State private var sleepWakeManager = SleepWakeManager()
 
     init() {
         if let creds = CredentialStore.load() {
@@ -16,6 +17,7 @@ struct HueBarApp: App {
             _apiClient = State(initialValue: client)
             if let client {
                 Self.configureHotkeyHandler(_hotkeyManager.wrappedValue, client: client)
+                _sleepWakeManager.wrappedValue.configure(apiClient: client)
             }
         }
     }
@@ -31,6 +33,11 @@ struct HueBarApp: App {
                         apiClient = try? HueAPIClient(bridgeIP: ip, applicationKey: key)
                     }
                     Self.configureHotkeyHandler(hotkeyManager, client: apiClient)
+                    if let apiClient {
+                        sleepWakeManager.configure(apiClient: apiClient)
+                    } else {
+                        sleepWakeManager.stopObserving()
+                    }
                 }
         }
         .menuBarExtraStyle(.window)
@@ -43,7 +50,7 @@ struct HueBarApp: App {
     @ViewBuilder
     private var mainView: some View {
         if authService.isAuthenticated, let client = apiClient {
-            MenuBarView(apiClient: client, hotkeyManager: hotkeyManager, onSignOut: signOut)
+            MenuBarView(apiClient: client, hotkeyManager: hotkeyManager, sleepWakeManager: sleepWakeManager, onSignOut: signOut)
         } else {
             SetupView(discovery: discovery, authService: authService)
         }
@@ -52,6 +59,7 @@ struct HueBarApp: App {
     private func signOut() {
         apiClient?.stopEventStream()
         authService.signOut()
+        sleepWakeManager.stopObserving()
         apiClient = nil
         Self.configureHotkeyHandler(hotkeyManager, client: nil)
     }
