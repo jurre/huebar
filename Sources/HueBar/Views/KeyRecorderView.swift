@@ -26,8 +26,12 @@ final class KeyRecorderNSView: NSView {
     var onRecorded: ((UInt32, UInt32) -> Void)?
     var currentKeyCode: UInt32?
     var currentModifierFlags: UInt32?
-    private var isRecording = false
-    private var monitor: Any?
+    private nonisolated(unsafe) var isRecording = false
+    private nonisolated(unsafe) var monitor: Any?
+
+    deinit {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+    }
 
     override var acceptsFirstResponder: Bool { true }
 

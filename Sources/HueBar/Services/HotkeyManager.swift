@@ -64,15 +64,26 @@ final class HotkeyManager {
     /// Maps Carbon EventHotKeyID.id → HotkeyBinding.id
     private(set) var hotKeyIDToBindingID: [UInt32: UUID] = [:]
 
-    private var registeredHotKeys: [EventHotKeyRef?] = []
+    private nonisolated(unsafe) var registeredHotKeys: [EventHotKeyRef?] = []
     private var nextHotKeyID: UInt32 = 1
-    private var eventHandlerRef: EventHandlerRef?
+    private nonisolated(unsafe) var eventHandlerRef: EventHandlerRef?
 
     init() {
         Self.shared = self
         installCarbonHandler()
         loadBindings()
         registerAll()
+    }
+
+    deinit {
+        // Carbon hotkey refs are not actor-isolated; safe to clean up here
+        for ref in registeredHotKeys {
+            if let ref { UnregisterEventHotKey(ref) }
+        }
+        if let handler = eventHandlerRef {
+            RemoveEventHandler(handler)
+        }
+        Self.shared = nil
     }
 
     // MARK: - Persistence
