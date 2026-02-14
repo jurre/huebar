@@ -3,7 +3,6 @@ import Testing
 @testable import HueBar
 
 @Suite("SSEParser")
-@MainActor
 struct SSEParserTests {
     private func makeEventJSON(id: String = "ev-1") -> String {
         """
