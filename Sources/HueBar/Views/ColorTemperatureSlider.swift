@@ -48,6 +48,8 @@ struct ColorTemperatureSlider: View {
             )
         }
         .frame(height: thumbSize)
+        .accessibilityLabel("Color temperature")
+        .accessibilityValue(mirek < 250 ? "Cool" : mirek > 400 ? "Warm" : "Neutral")
     }
 
     private func thumbOffset(width: CGFloat, thumbSize: CGFloat) -> CGFloat {
