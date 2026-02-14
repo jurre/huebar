@@ -1,17 +1,29 @@
 import SwiftUI
 
 struct RoomDetailView: View {
+    enum GroupTarget {
+        case room(Room)
+        case zone(Zone)
+    }
+
     @Bindable var apiClient: HueAPIClient
-    let name: String
-    let groupedLightId: String?
-    let groupId: String
-    var room: Room? = nil
-    var zone: Zone? = nil
+    let target: GroupTarget
     let onBack: () -> Void
 
     @State private var sliderBrightness: Double = 0
     @State private var debounceTask: Task<Void, Never>?
     @State private var selectedLightId: String? = nil
+
+    private var group: any LightGroup {
+        switch target {
+        case .room(let room): return room
+        case .zone(let zone): return zone
+        }
+    }
+
+    private var name: String { group.name }
+    private var groupedLightId: String? { group.groupedLightId }
+    private var groupId: String { group.id }
 
     private var groupedLight: GroupedLight? {
         apiClient.groupedLight(for: groupedLightId)
@@ -22,9 +34,10 @@ struct RoomDetailView: View {
     }
 
     private var roomLights: [HueLight] {
-        if let room { return apiClient.lights(forRoom: room) }
-        if let zone { return apiClient.lights(forZone: zone) }
-        return []
+        switch target {
+        case .room(let room): return apiClient.lights(forRoom: room)
+        case .zone(let zone): return apiClient.lights(forZone: zone)
+        }
     }
 
     private var selectedLight: HueLight? {

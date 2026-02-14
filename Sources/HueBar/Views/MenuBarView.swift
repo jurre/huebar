@@ -24,20 +24,14 @@ struct MenuBarView: View {
             } else if let room = selectedRoom {
                 RoomDetailView(
                     apiClient: apiClient,
-                    name: room.name,
-                    groupedLightId: room.groupedLightId,
-                    groupId: room.id,
-                    room: room,
+                    target: .room(room),
                     onBack: { withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = nil } }
                 )
                 .transition(.move(edge: .trailing))
             } else if let zone = selectedZone {
                 RoomDetailView(
                     apiClient: apiClient,
-                    name: zone.name,
-                    groupedLightId: zone.groupedLightId,
-                    groupId: zone.id,
-                    zone: zone,
+                    target: .zone(zone),
                     onBack: { withAnimation(.easeInOut(duration: 0.25)) { selectedZone = nil } }
                 )
                 .transition(.move(edge: .trailing))
