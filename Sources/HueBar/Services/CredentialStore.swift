@@ -73,7 +73,6 @@ enum CredentialStore {
             at: storageDirectory.appendingPathComponent("cert_hash")
         )
     }
-    }
 
     /// Save bridge IP independently so it survives credential deletion.
     static func saveLastBridgeIP(_ ip: String) throws {

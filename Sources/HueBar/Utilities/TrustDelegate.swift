@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
     let bridgeIP: String?
@@ -24,7 +25,7 @@ final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sen
 
         // Validate against the Hue root CAs — fail closed if configuration fails,
         // otherwise SecTrust falls back to system CAs and any public cert would pass.
-        guard SecTrustSetAnchorCertificates(serverTrust, SignifyRootCA.certificates as CFArray) == errSecSuccess,
+        guard SecTrustSetAnchorCertificates(serverTrust, HueBridgeRootCA.certificates as CFArray) == errSecSuccess,
               SecTrustSetAnchorCertificatesOnly(serverTrust, true) == errSecSuccess
         else {
             return (.cancelAuthenticationChallenge, nil)
@@ -34,14 +35,12 @@ final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sen
         // is the bridge ID (e.g. "ECB5FAFFFE123456"), not the IP address.
         SecTrustSetPolicies(serverTrust, SecPolicyCreateBasicX509())
 
-        var error: CFError?
-        let isValid = SecTrustEvaluateWithError(serverTrust, &error)
+        let isValid = SecTrustEvaluateWithError(serverTrust, nil)
 
         if isValid {
             return (.useCredential, URLCredential(trust: serverTrust))
         } else {
             return (.cancelAuthenticationChallenge, nil)
-        }
         }
     }
 }

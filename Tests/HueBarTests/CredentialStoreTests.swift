@@ -111,9 +111,9 @@ struct CredentialStoreTests {
 }
 
 @Suite
-struct SignifyRootCATests {
-    @Test func signifyRootCADecodes() {
-        let certs = SignifyRootCA.certificates
+struct HueBridgeRootCATests {
+    @Test func hueBridgeRootCADecodes() {
+        let certs = HueBridgeRootCA.certificates
         #expect(certs.count == 2)
 
         let oldSummary = SecCertificateCopySubjectSummary(certs[0]) as String?

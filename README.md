@@ -141,7 +141,7 @@ Sources/HueBar/
 └── Utilities/
     ├── ColorConversion.swift      # CIE xy / mirek → SwiftUI Color conversion
     ├── ArchetypeIcon.swift        # SF Symbol mapping for Hue archetypes
-    ├── SignifyRootCA.swift         # Bundled Signify/Philips Hue root CA certs
+    ├── HueBridgeRootCA.swift       # Bundled Signify/Philips Hue root CA certs
     ├── TrustDelegate.swift        # TLS validation via Signify root CA pinning
     └── IPValidation.swift         # Bridge IP address validation
 ```

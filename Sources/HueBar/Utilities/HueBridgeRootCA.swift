@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-enum SignifyRootCA {
+enum HueBridgeRootCA {
     /// Hue Bridge root CA certificates for TLS validation.
     /// The old Philips Hue cert covers bridges with firmware < 1.60,
     /// the new Signify cert covers bridges with firmware >= 1.60.
