@@ -26,7 +26,7 @@ Philips discontinued the official Hue macOS app years ago, and most third-party 
 - 🔄 **Real-time Updates** — Live state updates via Server-Sent Events (SSE) from the Hue Bridge
 - 🚀 **Launch at Login** — Optional auto-start on login, configurable from the menu
 - 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery with retry
-- 🔒 **Secure** — TLS certificate pinning (TOFU), IP validation, credentials stored locally with restricted permissions
+- 🔒 **Secure** — TLS with Signify root CA pinning, IP validation, credentials stored locally with restricted permissions
 - 🪶 **Lightweight** — Native SwiftUI, no external dependencies, lives in your menu bar
 
 ## Requirements
@@ -141,7 +141,8 @@ Sources/HueBar/
 └── Utilities/
     ├── ColorConversion.swift      # CIE xy / mirek → SwiftUI Color conversion
     ├── ArchetypeIcon.swift        # SF Symbol mapping for Hue archetypes
-    ├── TrustDelegate.swift        # Self-signed cert handling (TOFU)
+    ├── SignifyRootCA.swift         # Bundled Signify/Philips Hue root CA certs
+    ├── TrustDelegate.swift        # TLS validation via Signify root CA pinning
     └── IPValidation.swift         # Bridge IP address validation
 ```
 
@@ -153,8 +154,8 @@ We use a file rather than the macOS Keychain because the Keychain prompts for ac
 
 Other security measures:
 
-- **TLS certificate pinning** — the bridge's self-signed certificate is pinned on first connection (trust-on-first-use). Subsequent connections reject certificate changes to prevent MITM attacks.
-- **TLS bypass scoped to bridge IP** — only the known bridge IP bypasses standard certificate validation; all other HTTPS connections (e.g. cloud discovery) use normal CA validation.
+- **TLS root CA pinning** — the bridge's TLS certificate is validated against the bundled Signify/Philips Hue root CA certificates, preventing MITM attacks without requiring trust-on-first-use.
+- **TLS custom validation scoped to bridge IP** — only the known bridge IP uses the bundled root CAs; all other HTTPS connections (e.g. cloud discovery) use normal system CA validation.
 - **IP validation** — bridge IPs are validated as IPv4/IPv6 addresses using `inet_pton`, preventing URL injection via hostnames or paths.
 - **Resource ID sanitization** — API resource IDs are validated against UUID format before use in URL paths, preventing path traversal.
 
