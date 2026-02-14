@@ -189,6 +189,7 @@ struct ModelDecodingTests {
         """
         let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
         #expect(scene.paletteColors.count == 2)
+        #expect(scene.hasPalette == true)
     }
 
     @Test func scenePaletteColorsEmptyPalette() throws {
@@ -217,5 +218,49 @@ struct ModelDecodingTests {
         """
         let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
         #expect(scene.paletteColors.isEmpty)
+    }
+
+    // MARK: - Dynamic scene fields
+
+    @Test func sceneWithDynamicFields() throws {
+        let json = """
+        {
+            "id": "scene-dyn",
+            "metadata": {"name": "Dynamic Scene"},
+            "group": {"rid": "room-1", "rtype": "room"},
+            "status": {"active": "dynamic_palette"},
+            "speed": 0.75,
+            "auto_dynamic": true,
+            "palette": {
+                "color": [
+                    {"color": {"xy": {"x": 0.5, "y": 0.4}}, "dimming": {"brightness": 80.0}}
+                ],
+                "dimming": []
+            }
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.id == "scene-dyn")
+        #expect(scene.status?.active == .dynamicPalette)
+        #expect(scene.speed == 0.75)
+        #expect(scene.autoDynamic == true)
+        #expect(scene.isDynamicActive == true)
+        #expect(scene.hasPalette == true)
+    }
+
+    @Test func sceneWithoutDynamicFieldsBackwardCompat() throws {
+        let json = """
+        {
+            "id": "scene-static",
+            "metadata": {"name": "Static Scene"},
+            "group": {"rid": "room-1", "rtype": "room"},
+            "status": {"active": "static"}
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.speed == nil)
+        #expect(scene.autoDynamic == nil)
+        #expect(scene.isDynamicActive == false)
+        #expect(scene.hasPalette == false)
     }
 }

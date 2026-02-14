@@ -3,9 +3,21 @@ import SwiftUI
 struct SceneCard: View {
     let scene: HueScene
     let isActive: Bool
+    var isDynamic: Bool = false
     let onTap: () -> Void
+    var onPlayPause: (() -> Void)?
 
     var body: some View {
+        ZStack {
+            cardContent
+            if isActive && scene.supportsDynamic {
+                playPauseButton
+                    .offset(y: -8)
+            }
+        }
+    }
+
+    private var cardContent: some View {
         Button(action: onTap) {
             VStack(spacing: 6) {
                 Spacer()
@@ -31,6 +43,19 @@ struct SceneCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(scene.name) scene\(isActive ? ", active" : "")")
+    }
+
+    private var playPauseButton: some View {
+        Button {
+            onPlayPause?()
+        } label: {
+            Image(systemName: isDynamic ? "pause.fill" : "play.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(.black.opacity(0.35), in: Circle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var sceneGradient: some ShapeStyle {

@@ -22,9 +22,10 @@ struct HueEventResource: Decodable, Sendable {
     let colorTemperature: HueEventColorTemp?
     let status: HueSceneStatus?
     let metadata: HueEventMetadata?
+    let speed: Double?
 
     enum CodingKeys: String, CodingKey {
-        case id, type, on, dimming, color, status, metadata
+        case id, type, on, dimming, color, status, metadata, speed
         case colorTemperature = "color_temperature"
     }
 }

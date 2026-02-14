@@ -9,12 +9,35 @@ enum ScenePaletteEntry: Sendable {
 
 struct HueScene: Decodable, Sendable, Identifiable {
     let id: String
+    let type: String?
     let metadata: HueSceneMetadata
     let group: ResourceLink
     let status: HueSceneStatus?
     let palette: HueScenePalette?
+    let speed: Double?
+    let autoDynamic: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, metadata, group, status, palette, speed
+        case autoDynamic = "auto_dynamic"
+    }
 
     var name: String { metadata.name }
+
+    /// Whether the scene is currently in dynamic palette mode
+    var isDynamicActive: Bool {
+        status?.active == .dynamicPalette
+    }
+
+    /// Whether this scene has a color palette (used to decide whether to show play button)
+    var hasPalette: Bool {
+        !paletteEntries.isEmpty
+    }
+
+    /// Whether this scene supports dynamic palette mode
+    var supportsDynamic: Bool {
+        palette != nil || autoDynamic == true
+    }
 
     /// Raw CIE palette entries for this scene (no SwiftUI dependency).
     var paletteEntries: [ScenePaletteEntry] {
@@ -48,6 +71,7 @@ enum HueSceneActiveState: String, Decodable, Sendable {
     case active
     case `static`
     case inactive
+    case dynamicPalette = "dynamic_palette"
 }
 
 struct HueSceneStatus: Decodable, Sendable {

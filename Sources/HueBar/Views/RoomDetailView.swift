@@ -12,8 +12,10 @@ struct RoomDetailView: View {
 
     @State private var sliderBrightness: Double = 0
     @State private var sliderMirek: Int = 350
+    @State private var sliderSpeed: Double = 0.5
     @State private var debounceTask: Task<Void, Never>?
     @State private var colorTempDebounceTask: Task<Void, Never>?
+    @State private var speedDebounceTask: Task<Void, Never>?
     @State private var selectedLightId: String? = nil
 
     private var group: any LightGroup {
@@ -45,6 +47,14 @@ struct RoomDetailView: View {
     private var selectedLight: HueLight? {
         guard let id = selectedLightId else { return nil }
         return roomLights.first(where: { $0.id == id })
+    }
+
+    private var activeSceneForGroup: HueScene? {
+        apiClient.activeScene(for: groupId)
+    }
+
+    private var isActiveSceneDynamic: Bool {
+        apiClient.isActiveSceneDynamic(for: groupId)
     }
 
     private let sceneColumns = [
@@ -119,6 +129,25 @@ struct RoomDetailView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 8)
                 }
+
+                // Speed slider (visible when active scene is in dynamic mode)
+                if isActiveSceneDynamic {
+                    HStack(spacing: 6) {
+                        Image(systemName: "tortoise")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 12)
+                        Slider(value: $sliderSpeed, in: 0...1)
+                            .controlSize(.small)
+                            .tint(.hueAccent)
+                        Image(systemName: "hare")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 12)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                }
             }
 
             Divider()
@@ -141,12 +170,26 @@ struct RoomDetailView: View {
 
                             LazyVGrid(columns: sceneColumns, spacing: 8) {
                                 ForEach(groupScenes) { scene in
+                                    let sceneIsActive = activeSceneForGroup?.id == scene.id
                                     SceneCard(
                                         scene: scene,
-                                        isActive: apiClient.activeScene(for: groupId)?.id == scene.id
-                                    ) {
-                                        Task { try? await apiClient.recallScene(id: scene.id) }
-                                    }
+                                        isActive: sceneIsActive,
+                                        isDynamic: sceneIsActive && isActiveSceneDynamic,
+                                        onTap: {
+                                            Task { try? await apiClient.recallScene(id: scene.id) }
+                                        },
+                                        onPlayPause: {
+                                            Task {
+                                                if sceneIsActive {
+                                                    // Toggle dynamic mode on the active scene
+                                                    try? await apiClient.recallScene(id: scene.id, dynamic: !isActiveSceneDynamic)
+                                                } else {
+                                                    // Activate this scene in dynamic mode
+                                                    try? await apiClient.recallScene(id: scene.id, dynamic: true)
+                                                }
+                                            }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -176,6 +219,7 @@ struct RoomDetailView: View {
         .onAppear {
             sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
             sliderMirek = groupedLight?.mirek ?? 350
+            sliderSpeed = activeSceneForGroup?.speed ?? 0.5
         }
         .onChange(of: groupedLight?.brightness) { _, newValue in
             if let newValue {
@@ -187,15 +231,27 @@ struct RoomDetailView: View {
                 sliderMirek = newValue
             }
         }
+        .onChange(of: activeSceneForGroup?.speed) { _, newValue in
+            if let newValue {
+                sliderSpeed = newValue
+            }
+        }
         .onChange(of: sliderBrightness) { _, newValue in
             guard let id = groupedLightId else { return }
             debounce(task: &debounceTask) {
                 try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
             }
         }
+        .onChange(of: sliderSpeed) { _, newValue in
+            guard let sceneId = activeSceneForGroup?.id else { return }
+            debounce(task: &speedDebounceTask) {
+                try? await apiClient.setSceneSpeed(id: sceneId, speed: newValue)
+            }
+        }
         .onDisappear {
             debounceTask?.cancel()
             colorTempDebounceTask?.cancel()
+            speedDebounceTask?.cancel()
         }
     }
 
