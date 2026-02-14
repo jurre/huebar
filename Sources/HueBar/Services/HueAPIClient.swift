@@ -31,9 +31,11 @@ final class HueAPIClient {
 
     let orderManager = RoomOrderManager()
 
-    private let bridgeIP: String
-    private let applicationKey: String
-    private let session: URLSession
+    // Internal access so extensions in separate files can use these
+    let bridgeIP: String
+    let applicationKey: String
+    let session: URLSession
+    var eventStreamTask: Task<Void, Never>?
 
     init(bridgeIP: String, applicationKey: String) throws {
         guard IPValidation.isValid(bridgeIP) else {
@@ -108,116 +110,6 @@ final class HueAPIClient {
         try await fetch(path: "light")
     }
 
-    /// Toggle an individual light on/off
-    func toggleLight(id: String, on: Bool) async throws {
-        guard Self.isValidResourceId(id) else {
-            throw HueAPIError.invalidResourceId
-        }
-        // Optimistic update
-        if let index = lights.firstIndex(where: { $0.id == id }) {
-            let light = lights[index]
-            lights[index] = HueLight(
-                id: id, owner: light.owner, metadata: light.metadata,
-                on: OnState(on: on), dimming: light.dimming,
-                color: light.color, colorTemperature: light.colorTemperature
-            )
-        }
-
-        let request = try makeRequest(
-            path: "light/\(id)",
-            method: "PUT",
-            body: try JSONEncoder().encode(["on": OnState(on: on)])
-        )
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
-        }
-    }
-
-    /// Set brightness for an individual light (0.0–100.0)
-    func setLightBrightness(id: String, brightness: Double) async throws {
-        guard Self.isValidResourceId(id) else {
-            throw HueAPIError.invalidResourceId
-        }
-        let clamped = min(max(brightness, 0.0), 100.0)
-
-        if let index = lights.firstIndex(where: { $0.id == id }) {
-            let light = lights[index]
-            lights[index] = HueLight(
-                id: id, owner: light.owner, metadata: light.metadata,
-                on: light.on, dimming: DimmingState(brightness: clamped),
-                color: light.color, colorTemperature: light.colorTemperature
-            )
-        }
-
-        let request = try makeRequest(
-            path: "light/\(id)",
-            method: "PUT",
-            body: try JSONEncoder().encode(["dimming": DimmingState(brightness: clamped)])
-        )
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
-        }
-    }
-
-    /// Set color for an individual light using CIE xy coordinates
-    func setLightColor(id: String, xy: CIEXYColor) async throws {
-        guard Self.isValidResourceId(id) else {
-            throw HueAPIError.invalidResourceId
-        }
-
-        // Optimistic update
-        if let index = lights.firstIndex(where: { $0.id == id }) {
-            let light = lights[index]
-            lights[index] = HueLight(
-                id: id, owner: light.owner, metadata: light.metadata,
-                on: light.on, dimming: light.dimming,
-                color: LightColor(xy: xy), colorTemperature: light.colorTemperature
-            )
-        }
-
-        let body = try JSONEncoder().encode(["color": ["xy": ["x": xy.x, "y": xy.y]]])
-        let request = try makeRequest(path: "light/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
-        }
-    }
-
-    /// Set color temperature for an individual light (mirek value: 153–500)
-    func setLightColorTemperature(id: String, mirek: Int) async throws {
-        guard Self.isValidResourceId(id) else {
-            throw HueAPIError.invalidResourceId
-        }
-        let clampedMirek = min(max(mirek, 153), 500)
-
-        // Optimistic update
-        if let index = lights.firstIndex(where: { $0.id == id }) {
-            let light = lights[index]
-            lights[index] = HueLight(
-                id: id, owner: light.owner, metadata: light.metadata,
-                on: light.on, dimming: light.dimming,
-                color: light.color, colorTemperature: LightColorTemperature(mirek: clampedMirek, mirekValid: true)
-            )
-        }
-
-        let body = try JSONEncoder().encode(["color_temperature": ["mirek": clampedMirek]])
-        let request = try makeRequest(path: "light/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
-        }
-    }
-
     /// Get lights belonging to a room (room children are devices, lights have device owners)
     func lights(forRoom room: Room) -> [HueLight] {
         let deviceIds = Set(room.children.filter { $0.rtype == "device" }.map(\.rid))
@@ -231,213 +123,8 @@ final class HueAPIClient {
     }
 
     /// Validate that a resource ID matches the expected Hue API UUID format
-    private static func isValidResourceId(_ id: String) -> Bool {
+    static func isValidResourceId(_ id: String) -> Bool {
         UUID(uuidString: id) != nil
-    }
-
-    /// Toggle a grouped light on/off
-    func toggleGroupedLight(id: String, on: Bool) async throws {
-        guard Self.isValidResourceId(id) else {
-            throw HueAPIError.invalidResourceId
-        }
-        // Optimistically update local state so the toggle reflects immediately
-        if let index = groupedLights.firstIndex(where: { $0.id == id }) {
-            groupedLights[index] = GroupedLight(
-                id: id,
-                on: OnState(on: on),
-                dimming: groupedLights[index].dimming
-            )
-        }
-
-        let request = try makeRequest(
-            path: "grouped_light/\(id)",
-            method: "PUT",
-            body: try JSONEncoder().encode(["on": OnState(on: on)])
-        )
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            // Revert on failure
-            groupedLights = try await fetchGroupedLights()
-            throw HueAPIError.invalidResponse
-        }
-    }
-
-    /// Set brightness for a grouped light (0.0–100.0)
-    func setBrightness(groupedLightId: String, brightness: Double) async throws {
-        guard Self.isValidResourceId(groupedLightId) else {
-            throw HueAPIError.invalidResourceId
-        }
-        let clampedBrightness = min(max(brightness, 0.0), 100.0)
-
-        // Optimistic update
-        if let index = groupedLights.firstIndex(where: { $0.id == groupedLightId }) {
-            groupedLights[index] = GroupedLight(
-                id: groupedLightId,
-                on: groupedLights[index].on,
-                dimming: DimmingState(brightness: clampedBrightness)
-            )
-        }
-
-        let request = try makeRequest(
-            path: "grouped_light/\(groupedLightId)",
-            method: "PUT",
-            body: try JSONEncoder().encode(["dimming": DimmingState(brightness: clampedBrightness)])
-        )
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            // Revert on failure
-            groupedLights = try await fetchGroupedLights()
-            throw HueAPIError.invalidResponse
-        }
-    }
-
-    /// Look up the GroupedLight for a room or zone
-    func groupedLight(for groupId: String?) -> GroupedLight? {
-        guard let groupId else { return nil }
-        return groupedLights.first(where: { $0.id == groupId })
-    }
-
-    /// Filter scenes belonging to a specific room or zone
-    func scenes(for groupId: String?) -> [HueScene] {
-        guard let groupId else { return [] }
-        return scenes.filter { $0.group.rid == groupId }
-    }
-
-    /// Find the active scene for a room/zone by checking scene status from the API
-    func activeScene(for groupId: String?) -> HueScene? {
-        guard let groupId else { return nil }
-        // Check scenes where the API reports active status
-        if let active = scenes.first(where: {
-            $0.group.rid == groupId && $0.status?.active == .active
-        }) {
-            return active
-        }
-        // Fall back to our locally tracked active scene
-        if let activeId = activeSceneId {
-            return scenes.first(where: { $0.id == activeId && $0.group.rid == groupId })
-        }
-        return nil
-    }
-
-    /// Get the raw palette entries for a room/zone card.
-    /// Prefers the active scene, falls back to the first scene with palette entries.
-    func activeScenePaletteEntries(for groupId: String?) -> [ScenePaletteEntry] {
-        guard let groupId else { return [] }
-        // Use active scene if we know it
-        if let active = activeScene(for: groupId), !active.paletteEntries.isEmpty {
-            return active.paletteEntries
-        }
-        // Fall back: use the first scene for this group that has palette entries
-        let groupScenes = scenes.filter { $0.group.rid == groupId }
-        if let withPalette = groupScenes.first(where: { !$0.paletteEntries.isEmpty }) {
-            return withPalette.paletteEntries
-        }
-        return []
-    }
-
-    /// Recall (activate) a scene
-    func recallScene(id: String) async throws {
-        guard Self.isValidResourceId(id) else {
-            throw HueAPIError.invalidResourceId
-        }
-        activeSceneId = id
-        let body = try JSONEncoder().encode(["recall": ["action": "active"]])
-        let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw HueAPIError.invalidResponse
-        }
-        // Refresh grouped lights to reflect scene's brightness/on state
-        groupedLights = try await fetchGroupedLights()
-    }
-
-    // MARK: - Event Stream (SSE)
-
-    private var eventStreamTask: Task<Void, Never>?
-
-    func startEventStream() {
-        guard eventStreamTask == nil else { return }
-        eventStreamTask = Task { await runEventStream() }
-    }
-
-    func stopEventStream() {
-        eventStreamTask?.cancel()
-        eventStreamTask = nil
-    }
-
-    private func runEventStream() async {
-        let parser = SSEParser()
-        var backoff: UInt64 = 1
-
-        while !Task.isCancelled {
-            parser.reset()
-
-            do {
-                var components = URLComponents()
-                components.scheme = "https"
-                components.host = bridgeIP
-                components.path = "/eventstream/clip/v2"
-                guard let url = components.url else { continue }
-
-                var request = URLRequest(url: url)
-                request.setValue(applicationKey, forHTTPHeaderField: "hue-application-key")
-                request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-
-                let (bytes, response) = try await session.bytes(for: request)
-                guard let httpResponse = response as? HTTPURLResponse,
-                      httpResponse.statusCode == 200 else { throw HueAPIError.invalidResponse }
-
-                backoff = 1
-
-                var lineBuffer = Data()
-                for try await byte in bytes {
-                    if byte == UInt8(ascii: "\n") {
-                        let line = String(data: lineBuffer, encoding: .utf8) ?? ""
-                        lineBuffer.removeAll(keepingCapacity: true)
-                        if let events = parser.processLine(line) {
-                            applyEvents(events)
-                        }
-                    } else {
-                        lineBuffer.append(byte)
-                    }
-                }
-            } catch is CancellationError {
-                break
-            } catch {
-                // Sleep with exponential backoff before retrying
-                do {
-                    try await Task.sleep(nanoseconds: backoff * 1_000_000_000)
-                } catch { break }
-                backoff = min(backoff * 2, 30)
-            }
-        }
-    }
-
-    private func applyEvents(_ events: [HueEvent]) {
-        for event in events {
-            switch event.type {
-            case .update:
-                for resource in event.data {
-                    switch resource.type {
-                    case "grouped_light":
-                        EventStreamUpdater.apply(resource, to: &groupedLights)
-                    case "light":
-                        EventStreamUpdater.apply(resource, to: &lights)
-                    case "scene":
-                        if resource.status?.active == .static {
-                            activeSceneId = resource.id
-                        }
-                    default:
-                        break
-                    }
-                }
-            case .add, .delete:
-                Task { await fetchAll() }
-            }
-        }
     }
 
     // MARK: - Pinning & Ordering (forwarded to RoomOrderManager)
@@ -456,7 +143,7 @@ final class HueAPIClient {
 
     // MARK: - Private
 
-    private func makeRequest(path: String, method: String = "GET", body: Data? = nil) throws -> URLRequest {
+    func makeRequest(path: String, method: String = "GET", body: Data? = nil) throws -> URLRequest {
         var components = URLComponents()
         components.scheme = "https"
         components.host = bridgeIP
@@ -474,7 +161,7 @@ final class HueAPIClient {
         return request
     }
 
-    private func fetch<T: Decodable & Sendable>(path: String) async throws -> [T] {
+    func fetch<T: Decodable & Sendable>(path: String) async throws -> [T] {
         let request = try makeRequest(path: path)
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
