@@ -29,6 +29,30 @@ enum CredentialStore {
         )
     }
 
+    /// Write data to file with 0o600 permissions, avoiding the race window
+    /// where `.atomic` writes create files with default (world-readable) permissions
+    /// before `setAttributes` can restrict them.
+    private static func writeRestricted(_ data: Data, to url: URL) throws {
+        let path = url.path
+        // Open (or create) the file with restricted permissions from the start
+        let fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0o600)
+        guard fd >= 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        defer { close(fd) }
+        try data.withUnsafeBytes { buffer in
+            guard let base = buffer.baseAddress else { return }
+            var written = 0
+            while written < buffer.count {
+                let result = write(fd, base.advanced(by: written), buffer.count - written)
+                guard result >= 0 else {
+                    throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+                }
+                written += result
+            }
+        }
+    }
+
     struct Credentials: Codable {
         var bridgeIP: String
         var applicationKey: String
@@ -38,8 +62,7 @@ enum CredentialStore {
     static func save(credentials: Credentials) throws {
         try ensureStorageDirectory()
         let data = try JSONEncoder().encode(credentials)
-        try data.write(to: credentialsFile, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: credentialsFile.path)
+        try writeRestricted(data, to: credentialsFile)
         try? saveLastBridgeIP(credentials.bridgeIP)
     }
 
@@ -52,8 +75,7 @@ enum CredentialStore {
         // Save cert hash independently so TOFU works before credentials exist
         try ensureStorageDirectory()
         let data = Data(hash.utf8)
-        try data.write(to: certHashFile, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: certHashFile.path)
+        try writeRestricted(data, to: certHashFile)
 
         // Also update credentials if they exist
         if var creds = load() {
@@ -75,8 +97,7 @@ enum CredentialStore {
     static func saveLastBridgeIP(_ ip: String) throws {
         try ensureStorageDirectory()
         let data = Data(ip.utf8)
-        try data.write(to: lastBridgeIPFile, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: lastBridgeIPFile.path)
+        try writeRestricted(data, to: lastBridgeIPFile)
     }
 
     static func loadLastBridgeIP() -> String? {
