@@ -9,6 +9,10 @@ A native macOS menubar app for controlling your Philips Hue lights. Toggle rooms
   <img width="300" alt="HueBar settings" src="screenshots/settings.png">
 </p>
 
+## Why HueBar?
+
+Philips discontinued the official Hue macOS app years ago, and most third-party alternatives are closed-source, use older APIs, or require a paid license. HueBar is a free, open-source alternative built on the modern [CLIP API v2](https://developers.meethue.com/develop/hue-api-v2/) with real-time updates via Server-Sent Events. It's native SwiftUI with zero external dependencies — just a lightweight menubar app that does what you need.
+
 ## Features
 
 - 💡 **Rooms & Zones** — View all your Hue rooms and zones with on/off toggles
