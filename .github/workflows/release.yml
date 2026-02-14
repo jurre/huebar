@@ -79,9 +79,10 @@ jobs:
           
           echo "## Installation" >> notes.txt
           echo "" >> notes.txt
-          echo "1. Download **HueBar.zip** below" >> notes.txt
+          echo "1. Download **HueBar.zip** from the Assets section below" >> notes.txt
           echo "2. Unzip and move **HueBar.app** to `/Applications`" >> notes.txt
-          echo "3. Launch HueBar and connect to your Hue Bridge" >> notes.txt
+          echo "3. Launch HueBar from Spotlight or Finder" >> notes.txt
+          echo "4. Connect to your Hue Bridge when prompted" >> notes.txt
           echo "" >> notes.txt
           echo "**Requirements:** macOS 15.0 (Sequoia) or later" >> notes.txt
 
