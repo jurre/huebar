@@ -10,10 +10,9 @@ struct LightCard: View {
         Button(action: { onTap?() }) {
             HStack(spacing: 0) {
                 // Color accent strip
-                RoundedRectangle(cornerRadius: 2)
+                Rectangle()
                     .fill(light.isOn ? light.displayColor : Color.gray.opacity(0.3))
                     .frame(width: 4)
-                    .padding(.vertical, 4)
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
@@ -41,6 +40,7 @@ struct LightCard: View {
                     .fill(cardBackground)
                     .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
             )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
