@@ -8,10 +8,25 @@ final class RoomOrderManager {
     static let pinnedRoomsKey = "huebar.pinnedRooms"
     static let pinnedZonesKey = "huebar.pinnedZones"
 
+    let defaults: UserDefaults
+
+    private var cachedPinnedRooms: Set<String>
+    private var cachedPinnedZones: Set<String>
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.cachedPinnedRooms = Set(defaults.stringArray(forKey: Self.pinnedRoomsKey) ?? [])
+        self.cachedPinnedZones = Set(defaults.stringArray(forKey: Self.pinnedZonesKey) ?? [])
+    }
+
     // MARK: - Generic methods
 
     func pinnedIds(for key: String) -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+        switch key {
+        case Self.pinnedRoomsKey: return cachedPinnedRooms
+        case Self.pinnedZonesKey: return cachedPinnedZones
+        default: return Set(defaults.stringArray(forKey: key) ?? [])
+        }
     }
 
     func isPinned(_ id: String, key: String) -> Bool {
@@ -21,7 +36,8 @@ final class RoomOrderManager {
     func togglePin<T: LightGroup>(_ id: String, groups: inout [T], pinnedKey: String) {
         var pinned = pinnedIds(for: pinnedKey)
         if pinned.contains(id) { pinned.remove(id) } else { pinned.insert(id) }
-        UserDefaults.standard.set(Array(pinned), forKey: pinnedKey)
+        defaults.set(Array(pinned), forKey: pinnedKey)
+        updateCache(pinned, for: pinnedKey)
         sort(&groups, pinnedKey: pinnedKey)
     }
 
@@ -41,13 +57,23 @@ final class RoomOrderManager {
               fromIndex != toIndex else { return }
         let item = groups.remove(at: fromIndex)
         groups.insert(item, at: toIndex)
-        UserDefaults.standard.set(groups.map(\.id), forKey: orderKey)
+        defaults.set(groups.map(\.id), forKey: orderKey)
     }
 
     // MARK: - Convenience wrappers
 
-    var pinnedRoomIds: Set<String> { pinnedIds(for: Self.pinnedRoomsKey) }
-    var pinnedZoneIds: Set<String> { pinnedIds(for: Self.pinnedZonesKey) }
+    var pinnedRoomIds: Set<String> { cachedPinnedRooms }
+    var pinnedZoneIds: Set<String> { cachedPinnedZones }
+
+    // MARK: - Private
+
+    private func updateCache(_ pinned: Set<String>, for key: String) {
+        switch key {
+        case Self.pinnedRoomsKey: cachedPinnedRooms = pinned
+        case Self.pinnedZonesKey: cachedPinnedZones = pinned
+        default: break
+        }
+    }
 
     func isRoomPinned(_ id: String) -> Bool { isPinned(id, key: Self.pinnedRoomsKey) }
     func isZonePinned(_ id: String) -> Bool { isPinned(id, key: Self.pinnedZonesKey) }
