@@ -51,28 +51,48 @@ jobs:
         if: steps.calc-version.outputs.skip == 'no'
         run: |
           PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$PREV" ]; then
-            echo "## HueBar - Initial Release" > notes.txt
-            echo "" >> notes.txt
-            echo "Native macOS menubar app for Philips Hue lights" >> notes.txt
-            echo "" >> notes.txt
-            echo "### Features" >> notes.txt
-            echo "- Room and zone control" >> notes.txt
-            echo "- Brightness and color adjustment" >> notes.txt
-            echo "- Scene activation" >> notes.txt
-            echo "- Individual light control" >> notes.txt
-            echo "- Global keyboard shortcuts" >> notes.txt
-            echo "- Sleep/wake automation" >> notes.txt
-          else
-            echo "## Changes" > notes.txt
-            echo "" >> notes.txt
-            git log --oneline ${PREV}..HEAD >> notes.txt
-          fi
+          
+          # Always start with header
+          echo "## HueBar" > notes.txt
           echo "" >> notes.txt
-          echo "## Install" >> notes.txt
-          echo "1. Download HueBar.zip" >> notes.txt
-          echo "2. Unzip and move to /Applications" >> notes.txt
-          echo "3. Launch and connect to your bridge" >> notes.txt
+          echo "Native macOS menubar app for controlling Philips Hue lights" >> notes.txt
+          echo "" >> notes.txt
+          
+          # Generate changelog with AI summary
+          if [ -n "$PREV" ]; then
+            echo "### What's Changed" >> notes.txt
+            echo "" >> notes.txt
+            
+            # Get commit messages since last tag
+            COMMITS=$(git log --pretty=format:"- %s" ${PREV}..HEAD)
+            
+            # Use GitHub Copilot CLI to summarize if available, otherwise use commits directly
+            if command -v gh &> /dev/null && gh copilot --version &> /dev/null 2>&1; then
+              echo "$COMMITS" | gh copilot explain --prompt "Summarize these git commits into user-friendly release notes" >> notes.txt 2>/dev/null || echo "$COMMITS" >> notes.txt
+            else
+              echo "$COMMITS" >> notes.txt
+            fi
+            echo "" >> notes.txt
+          else
+            echo "### Features" >> notes.txt
+            echo "" >> notes.txt
+            echo "- 💡 Room and zone control with on/off toggles" >> notes.txt
+            echo "- 🎚️ Brightness and color adjustment" >> notes.txt
+            echo "- 🎨 Scene activation and browsing" >> notes.txt
+            echo "- 💡 Individual light control" >> notes.txt
+            echo "- ⌨️ Global keyboard shortcuts" >> notes.txt
+            echo "- 😴 Sleep/wake automation" >> notes.txt
+            echo "- 🔄 Real-time updates via SSE" >> notes.txt
+            echo "" >> notes.txt
+          fi
+          
+          echo "## Installation" >> notes.txt
+          echo "" >> notes.txt
+          echo "1. Download **HueBar.zip** below" >> notes.txt
+          echo "2. Unzip and move **HueBar.app** to `/Applications`" >> notes.txt
+          echo "3. Launch HueBar and connect to your Hue Bridge" >> notes.txt
+          echo "" >> notes.txt
+          echo "**Requirements:** macOS 15.0 (Sequoia) or later" >> notes.txt
 
       - name: Release
         if: steps.calc-version.outputs.skip == 'no'
