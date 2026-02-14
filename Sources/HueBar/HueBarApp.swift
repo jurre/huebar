@@ -44,7 +44,10 @@ struct HueBarApp: App {
     }
 
     private var menuBarIcon: String {
-        authService.isAuthenticated && apiClient != nil ? "lightbulb.fill" : "lightbulb"
+        guard authService.isAuthenticated, let client = apiClient else {
+            return "lightbulb"
+        }
+        return client.groupedLights.contains(where: \.isOn) ? "lightbulb.fill" : "lightbulb"
     }
 
     @ViewBuilder
