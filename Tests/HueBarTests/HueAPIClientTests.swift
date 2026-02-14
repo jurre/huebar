@@ -388,6 +388,38 @@ struct HueAPIClientTests {
         #expect(client.activeSceneId == sceneId)
     }
 
+    // MARK: - activeScene(for:) tests
+
+    private func makeScene(id: String, name: String, groupId: String, status: HueSceneActiveState?) -> HueScene {
+        HueScene(
+            id: id,
+            metadata: HueSceneMetadata(name: name, image: nil),
+            group: ResourceLink(rid: groupId, rtype: "room"),
+            status: status.map { HueSceneStatus(active: $0) },
+            palette: nil
+        )
+    }
+
+    @Test func activeSceneReturnsStaticScene() {
+        let client = makeClient()
+        client.scenes = [
+            makeScene(id: "s1", name: "Relax", groupId: "room-1", status: .inactive),
+            makeScene(id: "s2", name: "Energize", groupId: "room-1", status: .static),
+        ]
+
+        let result = client.activeScene(for: "room-1")
+        #expect(result?.id == "s2")
+    }
+
+    @Test func activeSceneReturnsNilWhenAllInactive() {
+        let client = makeClient()
+        client.scenes = [
+            makeScene(id: "s1", name: "Relax", groupId: "room-1", status: .inactive),
+        ]
+
+        #expect(client.activeScene(for: "room-1") == nil)
+    }
+
     @Test func toggleLightRollbackOnHTTPFailure() async throws {
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000006"
