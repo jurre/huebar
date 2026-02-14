@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 
 @testable import HueBar
@@ -51,30 +52,6 @@ struct CredentialStoreTests {
         CredentialStore.delete()
         CredentialStore.delete()
         #expect(CredentialStore.load() == nil)
-    }
-
-    @Test func certHashSavedBeforeCredentials() throws {
-        defer { CredentialStore.delete() }
-        // No credentials exist yet
-        #expect(CredentialStore.load() == nil)
-        // Cert hash can still be saved and retrieved (TOFU during initial auth)
-        try CredentialStore.updateCertificateHash("abc123hash")
-        #expect(CredentialStore.pinnedCertificateHash() == "abc123hash")
-    }
-
-    @Test func certHashSurvivedWithCredentials() throws {
-        defer { CredentialStore.delete(); cleanLastBridgeIP() }
-        try CredentialStore.updateCertificateHash("abc123hash")
-        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "key"))
-        // Hash is still available after credentials are saved
-        #expect(CredentialStore.pinnedCertificateHash() == "abc123hash")
-    }
-
-    @Test func deleteRemovesCertHash() throws {
-        defer { CredentialStore.delete() }
-        try CredentialStore.updateCertificateHash("abc123hash")
-        CredentialStore.delete()
-        #expect(CredentialStore.pinnedCertificateHash() == nil)
     }
 
     // MARK: - Last Bridge IP
@@ -130,5 +107,19 @@ struct CredentialStoreTests {
         discovery.addCachedBridge()
 
         #expect(discovery.discoveredBridges.isEmpty)
+    }
+}
+
+@Suite
+struct HueBridgeRootCATests {
+    @Test func hueBridgeRootCADecodes() {
+        let certs = HueBridgeRootCA.certificates
+        #expect(certs.count == 2)
+
+        let oldSummary = SecCertificateCopySubjectSummary(certs[0]) as String?
+        #expect(oldSummary == "root-bridge")
+
+        let newSummary = SecCertificateCopySubjectSummary(certs[1]) as String?
+        #expect(newSummary == "Hue Root CA 01")
     }
 }

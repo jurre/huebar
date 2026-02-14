@@ -1,13 +1,9 @@
 import Foundation
-import CryptoKit
+import Security
 
-// bridgeIP is immutable (let) and String is Sendable, so this is safe.
-// NSObject prevents automatic Sendable synthesis, but no mutable state exists.
 final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
     let bridgeIP: String?
 
-    /// Create a delegate that only bypasses TLS for the specified bridge IP.
-    /// If bridgeIP is nil, performs default TLS validation (used during discovery).
     init(bridgeIP: String? = nil) {
         self.bridgeIP = bridgeIP
     }
@@ -21,43 +17,30 @@ final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sen
             return (.performDefaultHandling, nil)
         }
 
-        // Only bypass TLS validation for the known bridge IP
+        // Only custom-validate for the known bridge IP
         let host = challenge.protectionSpace.host
         guard let bridgeIP, host == bridgeIP else {
             return (.performDefaultHandling, nil)
         }
 
-        // Extract certificate and compute SHA-256 hash
-        guard let certHash = certificateHash(from: serverTrust) else {
+        // Validate against the Hue root CAs — fail closed if configuration fails,
+        // otherwise SecTrust falls back to system CAs and any public cert would pass.
+        guard SecTrustSetAnchorCertificates(serverTrust, HueBridgeRootCA.certificates as CFArray) == errSecSuccess,
+              SecTrustSetAnchorCertificatesOnly(serverTrust, true) == errSecSuccess
+        else {
             return (.cancelAuthenticationChallenge, nil)
         }
 
-        // TOFU: if we have a pinned hash, verify it matches
-        if let pinnedHash = CredentialStore.pinnedCertificateHash() {
-            if certHash != pinnedHash {
-                // Certificate changed — possible MITM
-                return (.cancelAuthenticationChallenge, nil)
-            }
+        // Use basic X.509 policy (no hostname check) — the bridge cert's CN
+        // is the bridge ID (e.g. "ECB5FAFFFE123456"), not the IP address.
+        SecTrustSetPolicies(serverTrust, SecPolicyCreateBasicX509())
+
+        let isValid = SecTrustEvaluateWithError(serverTrust, nil)
+
+        if isValid {
+            return (.useCredential, URLCredential(trust: serverTrust))
         } else {
-            // First connection — pin the certificate
-            do {
-                try CredentialStore.updateCertificateHash(certHash)
-            } catch {
-                // Can't persist the hash — refuse the connection so we never
-                // trust a certificate we won't be able to verify next time.
-                return (.cancelAuthenticationChallenge, nil)
-            }
+            return (.cancelAuthenticationChallenge, nil)
         }
-
-        let credential = URLCredential(trust: serverTrust)
-        return (.useCredential, credential)
-    }
-
-    private func certificateHash(from trust: SecTrust) -> String? {
-        guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
-              let cert = chain.first else { return nil }
-        let data = SecCertificateCopyData(cert) as Data
-        let hash = SHA256.hash(data: data)
-        return hash.map { String(format: "%02x", $0) }.joined()
     }
 }
