@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  models: read
 
 jobs:
   build-and-release:
@@ -55,6 +56,8 @@ jobs:
 
       - name: Notes
         if: steps.calc-version.outputs.skip == 'no'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           PREV="${{ steps.calc-version.outputs.prev }}"
           
@@ -66,10 +69,28 @@ jobs:
           
           # Generate changelog
           if [ -n "$PREV" ]; then
-            echo "### What's Changed" >> notes.txt
-            echo "" >> notes.txt
-            git log --pretty=format:"- %s" ${PREV}..HEAD >> notes.txt
-            echo "" >> notes.txt
+            COMMITS=$(git log --pretty=format:"- %s" ${PREV}..HEAD)
+            
+            # Try LLM-generated summary via GitHub Models
+            PROMPT="Summarize these git commits into concise, user-friendly release notes. Group related changes. Use markdown bullet points. Focus on what changed from a user's perspective, not implementation details. Keep it short — max 10 bullet points. Do not include a header, just the bullets.
+
+Commits:
+${COMMITS}"
+            
+            SUMMARY=$(echo "$PROMPT" | gh models run gpt-4o-mini 2>/dev/null) || SUMMARY=""
+            
+            if [ -n "$SUMMARY" ]; then
+              echo "### What's Changed" >> notes.txt
+              echo "" >> notes.txt
+              echo "$SUMMARY" >> notes.txt
+              echo "" >> notes.txt
+            else
+              # Fallback to raw commit messages
+              echo "### What's Changed" >> notes.txt
+              echo "" >> notes.txt
+              echo "$COMMITS" >> notes.txt
+              echo "" >> notes.txt
+            fi
           else
             echo "### Features" >> notes.txt
             echo "" >> notes.txt
