@@ -47,7 +47,11 @@ if [ ! -f ".build/release/$APP_NAME" ]; then
 fi
 
 echo "Creating app bundle..."
-rm -rf "$APP_DIR"
+if [ -z "${APP_DIR:-}" ]; then
+    echo "ERROR: APP_DIR is empty; refusing to remove it." >&2
+    exit 1
+fi
+rm -rf -- "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
@@ -94,16 +98,20 @@ if [ "$SKIP_INSTALL" = true ]; then
     # CI mode: create zip instead of installing
     echo "Creating distributable ZIP..."
     zip -r "$APP_NAME.zip" "$APP_DIR"
-    rm -rf "$APP_DIR"
+    if [ -n "${APP_DIR:-}" ] && [ -d "$APP_DIR" ]; then
+        rm -rf -- "$APP_DIR"
+    fi
     echo "✅ $APP_NAME.zip created for distribution"
 else
     # Local install mode
     echo "Installing to $INSTALL_DIR..."
     if [ -d "$INSTALL_DIR/$APP_DIR" ]; then
-        rm -rf "$INSTALL_DIR/$APP_DIR"
+        rm -rf -- "$INSTALL_DIR/$APP_DIR"
     fi
     cp -R "$APP_DIR" "$INSTALL_DIR/"
-    rm -rf "$APP_DIR"
+    if [ -n "${APP_DIR:-}" ] && [ -d "$APP_DIR" ]; then
+        rm -rf -- "$APP_DIR"
+    fi
 
     echo ""
     echo "✅ $APP_NAME.app installed to $INSTALL_DIR"

@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: write
-  models: read
 
 jobs:
   build-and-release:
@@ -31,17 +30,31 @@ jobs:
           LATEST=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
           LATEST=${LATEST:-v0.0.0}
           # Bump patch version
-          MAJOR=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f1)
-          MINOR=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f2)
-          PATCH=$(echo "$LATEST" | sed 's/^v//' | cut -d. -f3)
+          VERSION=${LATEST#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          # Validate that all components are numbers
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "Invalid semver tag '$LATEST', defaulting to v0.0.0" >&2
+            MAJOR=0
+            MINOR=0
+            PATCH=0
+          fi
           TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "prev=$LATEST" >> $GITHUB_OUTPUT
           if git show-ref --tags --verify --quiet "refs/tags/$TAG"; then
             echo "skip=yes" >> $GITHUB_OUTPUT
+            echo "Tag $TAG already exists, release will be skipped"
           else
             echo "skip=no" >> $GITHUB_OUTPUT
+            echo "Will create new release with tag $TAG"
           fi
+
+      - name: Skip release (tag already exists)
+        if: steps.calc-version.outputs.skip == 'yes'
+        run: |
+          echo "Release skipped because tag '${{ steps.calc-version.outputs.tag }}' already exists."
+          echo "No build, packaging, or release steps were executed."
 
       - name: Build
         if: steps.calc-version.outputs.skip == 'no'
@@ -66,24 +79,26 @@ jobs:
           echo "Native macOS menubar app for controlling Philips Hue lights" >> notes.txt
           echo "" >> notes.txt
           
-          if [ -n "$PREV" ]; then
-            COMMITS=$(git log --pretty=format:"- %s" ${PREV}..HEAD)
+          if [ -n "$PREV" ] && [ "$PREV" != "v0.0.0" ]; then
+            # Use GitHub's automatic release notes generation API
+            GENERATED_NOTES=$(gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              /repos/${{ github.repository }}/releases/generate-notes \
+              -f tag_name="${{ steps.calc-version.outputs.tag }}" \
+              -f previous_tag_name="$PREV" \
+              --jq '.body' 2>/dev/null) || GENERATED_NOTES=""
             
-            PROMPT="Summarize these git commits into concise, user-friendly release notes. Group related changes. Use markdown bullet points. Focus on what changed from a user's perspective, not implementation details. Keep it short — max 10 bullet points. Do not include a header, just the bullets.
-
-Commits:
-${COMMITS}"
-            
-            SUMMARY=$(echo "$PROMPT" | gh models run gpt-4o-mini 2>/dev/null) || SUMMARY=""
-            
-            if [ -n "$SUMMARY" ]; then
+            if [ -n "$GENERATED_NOTES" ]; then
               echo "### What's Changed" >> notes.txt
               echo "" >> notes.txt
-              echo "$SUMMARY" >> notes.txt
+              echo "$GENERATED_NOTES" >> notes.txt
             else
+              # Fallback to simple commit list
               echo "### What's Changed" >> notes.txt
               echo "" >> notes.txt
-              echo "$COMMITS" >> notes.txt
+              git log --pretty=format:"- %s" ${PREV}..HEAD >> notes.txt
             fi
           else
             cat .github/release-notes-initial.md >> notes.txt
