@@ -56,6 +56,11 @@ jobs:
         run: |
           echo "Release skipped because tag '${{ steps.calc-version.outputs.tag }}' already exists."
           echo "No build, packaging, or release steps were executed."
+      - name: Skip release (tag already exists)
+        if: steps.calc-version.outputs.skip == 'yes'
+        run: |
+          echo "Release skipped because tag '${{ steps.calc-version.outputs.tag }}' already exists."
+          echo "No build, packaging, or release steps were executed."
 
       - name: Build
         if: steps.calc-version.outputs.skip == 'no'
