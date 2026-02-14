@@ -308,9 +308,9 @@ final class HueAPIClient {
     /// Find the active scene for a room/zone by checking scene status from the API
     func activeScene(for groupId: String?) -> HueScene? {
         guard let groupId else { return nil }
-        // Check scenes where the API reports active status
+        // Check scenes where the API reports active or static status
         if let active = scenes.first(where: {
-            $0.group.rid == groupId && $0.status?.active == .active
+            $0.group.rid == groupId && ($0.status?.active == .active || $0.status?.active == .static)
         }) {
             return active
         }
