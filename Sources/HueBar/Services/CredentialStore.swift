@@ -12,10 +12,6 @@ enum CredentialStore {
         storageDirectory.appendingPathComponent("credentials.json")
     }
 
-    private static var certHashFile: URL {
-        storageDirectory.appendingPathComponent("cert_hash")
-    }
-
     private static var lastBridgeIPFile: URL {
         storageDirectory.appendingPathComponent("last_bridge_ip")
     }
@@ -56,7 +52,6 @@ enum CredentialStore {
     struct Credentials: Codable {
         var bridgeIP: String
         var applicationKey: String
-        var certificateHash: String?
     }
 
     static func save(credentials: Credentials) throws {
@@ -71,26 +66,13 @@ enum CredentialStore {
         return try? JSONDecoder().decode(Credentials.self, from: data)
     }
 
-    static func updateCertificateHash(_ hash: String) throws {
-        // Save cert hash independently so TOFU works before credentials exist
-        try ensureStorageDirectory()
-        let data = Data(hash.utf8)
-        try writeRestricted(data, to: certHashFile)
-
-        // Also update credentials if they exist
-        if var creds = load() {
-            creds.certificateHash = hash
-            try save(credentials: creds)
-        }
+    static func delete() {
+        try? FileManager.default.removeItem(at: credentialsFile)
+        // Clean up legacy cert_hash file from TOFU era
+        try? FileManager.default.removeItem(
+            at: storageDirectory.appendingPathComponent("cert_hash")
+        )
     }
-
-    static func pinnedCertificateHash() -> String? {
-        // Read from standalone file first (available before credentials exist)
-        if let data = try? Data(contentsOf: certHashFile),
-           let hash = String(data: data, encoding: .utf8), !hash.isEmpty {
-            return hash
-        }
-        return load()?.certificateHash
     }
 
     /// Save bridge IP independently so it survives credential deletion.
@@ -106,14 +88,5 @@ enum CredentialStore {
             return nil
         }
         return ip
-    }
-
-    static func deleteCertificateHash() {
-        try? FileManager.default.removeItem(at: certHashFile)
-    }
-
-    static func delete() {
-        try? FileManager.default.removeItem(at: credentialsFile)
-        deleteCertificateHash()
     }
 }
