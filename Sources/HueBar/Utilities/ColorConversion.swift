@@ -4,11 +4,12 @@ import SwiftUI
 extension Color {
     /// The warm orange accent used for sliders and toggles.
     static let hueAccent = Color(red: 0.95, green: 0.65, blue: 0.25)
+    static let hueCardOff = Color(red: 0.28, green: 0.24, blue: 0.22)
 }
 
 extension CIEXYColor {
-    /// Vivid color for display indicators (colored dots, previews).
-    func displayColor() -> Color {
+    /// CIE xy → XYZ → linear sRGB → gamma-corrected sRGB, normalized to 0…1.
+    private func toSRGB() -> (r: Double, g: Double, b: Double) {
         let z = 1.0 - x - y
         let yVal = 1.0
         let xVal = (yVal / max(y, 0.0001)) * x
@@ -25,54 +26,34 @@ extension CIEXYColor {
         r = gammaCorrect(r); g = gammaCorrect(g); b = gammaCorrect(b)
 
         let maxC = max(r, g, b, 1.0)
-        r /= maxC; g /= maxC; b /= maxC
+        return (r: r / maxC, g: g / maxC, b: b / maxC)
+    }
 
-        return Color(red: r, green: g, blue: b)
+    /// Vivid color for display indicators (colored dots, previews).
+    func displayColor() -> Color {
+        let rgb = toSRGB()
+        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
     }
 
     /// Convert CIE 1931 xy + brightness to sRGB SwiftUI Color.
     /// Produces vibrant colors suitable for dark-mode card backgrounds.
     func swiftUIColor(brightness: Double? = nil) -> Color {
-        // CIE XY to XYZ (Y = 1.0 for full-range hue extraction)
-        let z = 1.0 - x - y
-        let yVal = 1.0
-        let xVal = (yVal / max(y, 0.0001)) * x
-        let zVal = (yVal / max(y, 0.0001)) * z
-
-        // XYZ to linear sRGB (D65)
-        var r =  xVal * 3.2406 + yVal * -1.5372 + zVal * -0.4986
-        var g = xVal * -0.9689 + yVal *  1.8758 + zVal *  0.0415
-        var b =  xVal * 0.0557 + yVal * -0.2040 + zVal *  1.0570
-
-        // Clamp negatives
-        r = max(r, 0); g = max(g, 0); b = max(b, 0)
-
-        // Gamma correction (sRGB)
-        func gammaCorrect(_ c: Double) -> Double {
-            c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1.0 / 2.4) - 0.055
-        }
-        r = gammaCorrect(r)
-        g = gammaCorrect(g)
-        b = gammaCorrect(b)
-
-        // Normalize if any channel exceeds 1.0
-        let maxC = max(r, g, b, 1.0)
-        r /= maxC; g /= maxC; b /= maxC
+        let rgb = toSRGB()
 
         // Convert RGB → HSB for predictable saturation/brightness control
-        let rgbMax = max(r, g, b)
-        let rgbMin = min(r, g, b)
+        let rgbMax = max(rgb.r, rgb.g, rgb.b)
+        let rgbMin = min(rgb.r, rgb.g, rgb.b)
         let delta = rgbMax - rgbMin
 
         var hue = 0.0
         if delta > 0 {
-            if rgbMax == r {
-                hue = (g - b) / delta
+            if rgbMax == rgb.r {
+                hue = (rgb.g - rgb.b) / delta
                 if hue < 0 { hue += 6 }
-            } else if rgbMax == g {
-                hue = (b - r) / delta + 2
+            } else if rgbMax == rgb.g {
+                hue = (rgb.b - rgb.r) / delta + 2
             } else {
-                hue = (r - g) / delta + 4
+                hue = (rgb.r - rgb.g) / delta + 4
             }
             hue /= 6
         }
@@ -170,36 +151,21 @@ extension CIEXYColor {
 
     /// Convert CIE xy back to HSB (hue & saturation in 0…1).
     func toHSB() -> (hue: Double, saturation: Double) {
-        let z = 1.0 - x - y
-        let yVal = 1.0
-        let xVal = (yVal / max(y, 0.0001)) * x
-        let zVal = (yVal / max(y, 0.0001)) * z
-
-        var r =  xVal * 3.2406 + yVal * -1.5372 + zVal * -0.4986
-        var g = xVal * -0.9689 + yVal *  1.8758 + zVal *  0.0415
-        var b =  xVal * 0.0557 + yVal * -0.2040 + zVal *  1.0570
-        r = max(r, 0); g = max(g, 0); b = max(b, 0)
-
-        func gammaCorrect(_ c: Double) -> Double {
-            c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1.0 / 2.4) - 0.055
-        }
-        r = gammaCorrect(r); g = gammaCorrect(g); b = gammaCorrect(b)
-        let maxC = max(r, g, b, 1.0)
-        r /= maxC; g /= maxC; b /= maxC
+        let rgb = toSRGB()
 
         // RGB → HSB
-        let rgbMax = max(r, g, b)
-        let rgbMin = min(r, g, b)
+        let rgbMax = max(rgb.r, rgb.g, rgb.b)
+        let rgbMin = min(rgb.r, rgb.g, rgb.b)
         let delta = rgbMax - rgbMin
         var hue = 0.0
         if delta > 0 {
-            if rgbMax == r {
-                hue = (g - b) / delta
+            if rgbMax == rgb.r {
+                hue = (rgb.g - rgb.b) / delta
                 if hue < 0 { hue += 6 }
-            } else if rgbMax == g {
-                hue = (b - r) / delta + 2
+            } else if rgbMax == rgb.g {
+                hue = (rgb.b - rgb.r) / delta + 2
             } else {
-                hue = (r - g) / delta + 4
+                hue = (rgb.r - rgb.g) / delta + 4
             }
             hue /= 6
         }

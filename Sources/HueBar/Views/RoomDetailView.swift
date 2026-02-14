@@ -100,7 +100,7 @@ struct RoomDetailView: View {
                         // Scenes grid
                         let groupScenes = apiClient.scenes(for: groupId)
                         if !groupScenes.isEmpty {
-                            sectionHeader("MY SCENES")
+                            SectionHeaderView(title: "MY SCENES")
 
                             LazyVGrid(columns: sceneColumns, spacing: 8) {
                                 ForEach(groupScenes) { scene in
@@ -118,7 +118,7 @@ struct RoomDetailView: View {
                     // Lights grid
                     let lightsInRoom = roomLights
                     if !lightsInRoom.isEmpty {
-                        sectionHeader("LIGHTS")
+                        SectionHeaderView(title: "LIGHTS")
 
                         LazyVGrid(columns: lightColumns, spacing: 8) {
                             ForEach(lightsInRoom) { light in
@@ -146,27 +146,13 @@ struct RoomDetailView: View {
         }
         .onChange(of: sliderBrightness) { _, newValue in
             guard let id = groupedLightId else { return }
-            debounceTask?.cancel()
-            debounceTask = Task {
-                try? await Task.sleep(for: .milliseconds(200))
-                guard !Task.isCancelled else { return }
+            debounce(task: &debounceTask) {
                 try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
             }
         }
+        .onDisappear { debounceTask?.cancel() }
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        HStack(spacing: 6) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.5)
-                .foregroundStyle(.secondary)
-            Rectangle()
-                .fill(Color.secondary.opacity(0.2))
-                .frame(height: 0.5)
-        }
-        .padding(.horizontal, 4)
-    }
 
     private var toggleBinding: Binding<Bool> {
         Binding(

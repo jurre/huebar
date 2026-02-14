@@ -149,4 +149,73 @@ struct ModelDecodingTests {
         #expect(light.color == nil)
         #expect(light.colorTemperature == nil)
     }
+
+    // MARK: - Scene paletteColors
+
+    @Test func scenePaletteColorsFromXY() throws {
+        let json = """
+        {
+            "id": "scene-1",
+            "metadata": {"name": "Tropical"},
+            "group": {"rid": "room-1", "rtype": "room"},
+            "palette": {
+                "color": [
+                    {"color": {"xy": {"x": 0.5, "y": 0.4}}, "dimming": {"brightness": 80.0}},
+                    {"color": {"xy": {"x": 0.3, "y": 0.6}}, "dimming": {"brightness": 50.0}}
+                ],
+                "dimming": []
+            }
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.paletteColors.count == 2)
+    }
+
+    @Test func scenePaletteColorsFromColorTemperature() throws {
+        let json = """
+        {
+            "id": "scene-2",
+            "metadata": {"name": "Warm"},
+            "group": {"rid": "room-1", "rtype": "room"},
+            "palette": {
+                "color": [],
+                "dimming": [],
+                "color_temperature": [
+                    {"color_temperature": {"mirek": 350}, "dimming": {"brightness": 100.0}},
+                    {"color_temperature": {"mirek": 250}, "dimming": {"brightness": 60.0}}
+                ]
+            }
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.paletteColors.count == 2)
+    }
+
+    @Test func scenePaletteColorsEmptyPalette() throws {
+        let json = """
+        {
+            "id": "scene-3",
+            "metadata": {"name": "Empty"},
+            "group": {"rid": "room-1", "rtype": "room"},
+            "palette": {
+                "color": [],
+                "dimming": []
+            }
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.paletteColors.isEmpty)
+    }
+
+    @Test func scenePaletteColorsNoPalette() throws {
+        let json = """
+        {
+            "id": "scene-4",
+            "metadata": {"name": "Basic"},
+            "group": {"rid": "room-1", "rtype": "room"}
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.paletteColors.isEmpty)
+    }
 }

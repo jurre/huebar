@@ -87,18 +87,16 @@ struct LightRowView: View {
         }
         .onChange(of: sliderBrightness) { _, newValue in
             guard let id = groupedLightId else { return }
-            debounceTask?.cancel()
-            debounceTask = Task {
-                try? await Task.sleep(for: .milliseconds(200))
-                guard !Task.isCancelled else { return }
+            debounce(task: &debounceTask) {
                 try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
             }
         }
+        .onDisappear { debounceTask?.cancel() }
     }
 
     private var cardGradient: some ShapeStyle {
         guard isOn else {
-            return AnyShapeStyle(Color(red: 0.28, green: 0.24, blue: 0.22))
+            return AnyShapeStyle(Color.hueCardOff)
         }
         let colors = apiClient.activeSceneColors(for: groupId)
         if colors.count >= 2 {

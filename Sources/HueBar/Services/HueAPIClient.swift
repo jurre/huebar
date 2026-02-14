@@ -1,5 +1,5 @@
 import Foundation
-import SwiftUI
+import Observation
 
 enum HueAPIError: Error, LocalizedError {
     case bridgeError(String)
@@ -321,18 +321,18 @@ final class HueAPIClient {
         return nil
     }
 
-    /// Get the palette colors for display on a room/zone card.
-    /// Prefers the active scene, falls back to the first scene with palette colors.
-    func activeSceneColors(for groupId: String?) -> [Color] {
+    /// Get the raw palette entries for a room/zone card.
+    /// Prefers the active scene, falls back to the first scene with palette entries.
+    func activeScenePaletteEntries(for groupId: String?) -> [ScenePaletteEntry] {
         guard let groupId else { return [] }
         // Use active scene if we know it
-        if let active = activeScene(for: groupId), !active.paletteColors.isEmpty {
-            return active.paletteColors
+        if let active = activeScene(for: groupId), !active.paletteEntries.isEmpty {
+            return active.paletteEntries
         }
-        // Fall back: use the first scene for this group that has palette colors
+        // Fall back: use the first scene for this group that has palette entries
         let groupScenes = scenes.filter { $0.group.rid == groupId }
-        if let withPalette = groupScenes.first(where: { !$0.paletteColors.isEmpty }) {
-            return withPalette.paletteColors
+        if let withPalette = groupScenes.first(where: { !$0.paletteEntries.isEmpty }) {
+            return withPalette.paletteEntries
         }
         return []
     }

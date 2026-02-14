@@ -18,7 +18,7 @@ struct ColorTemperatureSlider: View {
                 RoundedRectangle(cornerRadius: trackHeight / 2)
                     .fill(
                         LinearGradient(
-                            colors: temperatureGradientColors,
+                            colors: Self.temperatureGradientColors,
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -57,10 +57,8 @@ struct ColorTemperatureSlider: View {
         return CGFloat(fraction) * usableWidth
     }
 
-    private var temperatureGradientColors: [Color] {
-        // Generate smooth gradient from warm (500 mirek) to cool (153 mirek)
+    private static let temperatureGradientColors: [Color] =
         stride(from: 500, through: 153, by: -50).map { mirekVal in
             CIEXYColor.colorFromMirek(mirekVal)
         }
-    }
 }

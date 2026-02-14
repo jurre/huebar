@@ -1,5 +1,11 @@
 import Foundation
-import SwiftUI
+
+/// Raw palette entry without SwiftUI dependency.
+/// View-layer code converts these to `Color` via the extension in SceneColorExtension.swift.
+enum ScenePaletteEntry: Sendable {
+    case xy(CIEXYColor, brightness: Double?)
+    case colorTemperature(mirek: Int)
+}
 
 struct HueScene: Decodable, Sendable, Identifiable {
     let id: String
@@ -10,14 +16,14 @@ struct HueScene: Decodable, Sendable, Identifiable {
 
     var name: String { metadata.name }
 
-    /// Extract SwiftUI colors from the scene's palette
-    var paletteColors: [Color] {
+    /// Raw CIE palette entries for this scene (no SwiftUI dependency).
+    var paletteEntries: [ScenePaletteEntry] {
         guard let palette else { return [] }
 
         // Use XY palette colors if available
         if !palette.color.isEmpty {
             return palette.color.map { entry in
-                entry.color.xy.swiftUIColor(brightness: entry.dimming?.brightness)
+                .xy(entry.color.xy, brightness: entry.dimming?.brightness)
             }
         }
 
@@ -25,7 +31,7 @@ struct HueScene: Decodable, Sendable, Identifiable {
         if let temps = palette.colorTemperature, !temps.isEmpty {
             return temps.compactMap { entry in
                 guard let mirek = entry.colorTemperature?.mirek else { return nil }
-                return CIEXYColor.colorFromMirek(mirek)
+                return .colorTemperature(mirek: mirek)
             }
         }
 

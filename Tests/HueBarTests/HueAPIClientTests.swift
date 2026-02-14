@@ -242,7 +242,7 @@ struct HueAPIClientTests {
         let client = makeClient()
         let room = Room(
             id: "room-1",
-            metadata: RoomMetadata(name: "Living Room", archetype: "living_room"),
+            metadata: GroupMetadata(name: "Living Room", archetype: "living_room"),
             services: [ResourceLink(rid: "gl-1", rtype: "grouped_light")],
             children: [
                 ResourceLink(rid: "device-A", rtype: "device"),
@@ -265,7 +265,7 @@ struct HueAPIClientTests {
         let client = makeClient()
         let zone = Zone(
             id: "zone-1",
-            metadata: ZoneMetadata(name: "Downstairs", archetype: "home"),
+            metadata: GroupMetadata(name: "Downstairs", archetype: "home"),
             services: [ResourceLink(rid: "gl-2", rtype: "grouped_light")],
             children: [
                 ResourceLink(rid: "l1", rtype: "light"),
@@ -289,6 +289,135 @@ struct HueAPIClientTests {
         await #expect(throws: HueAPIError.self) {
             try await client.toggleLight(id: "../evil", on: true)
         }
+    }
+
+    // MARK: - Light control tests
+
+    @Test func toggleLightOptimisticUpdate() async throws {
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000001"
+        client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
+
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            #expect(request.url?.absoluteString.contains("/clip/v2/resource/light/\(validId)") == true)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        try await client.toggleLight(id: validId, on: false)
+        #expect(client.lights.first?.isOn == false)
+    }
+
+    @Test func setLightBrightnessClamping() async throws {
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000002"
+        client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
+
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Value above 100 should be clamped
+        try await client.setLightBrightness(id: validId, brightness: 150.0)
+        #expect(client.lights.first?.brightness == 100.0)
+
+        // Value below 0 should be clamped
+        try await client.setLightBrightness(id: validId, brightness: -10.0)
+        #expect(client.lights.first?.brightness == 0.0)
+    }
+
+    @Test func setLightColorUpdatesState() async throws {
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000003"
+        client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
+
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        let xy = CIEXYColor(x: 0.3, y: 0.5)
+        try await client.setLightColor(id: validId, xy: xy)
+        #expect(client.lights.first?.color?.xy.x == 0.3)
+        #expect(client.lights.first?.color?.xy.y == 0.5)
+    }
+
+    @Test func setLightColorTemperatureMirekClamping() async throws {
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000004"
+        client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
+
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Below min (153) should clamp
+        try await client.setLightColorTemperature(id: validId, mirek: 50)
+        #expect(client.lights.first?.colorTemperature?.mirek == 153)
+
+        // Above max (500) should clamp
+        try await client.setLightColorTemperature(id: validId, mirek: 999)
+        #expect(client.lights.first?.colorTemperature?.mirek == 500)
+
+        // Valid value should pass through
+        try await client.setLightColorTemperature(id: validId, mirek: 300)
+        #expect(client.lights.first?.colorTemperature?.mirek == 300)
+    }
+
+    @Test func recallSceneTracksActiveId() async throws {
+        let client = makeClient()
+        let sceneId = "00000000-0000-0000-0000-000000000005"
+
+        var requestCount = 0
+        MockURLProtocol.requestHandler = { request in
+            requestCount += 1
+            let path = request.url?.absoluteString ?? ""
+            if path.contains("/resource/scene/") {
+                #expect(request.httpMethod == "PUT")
+            }
+            // Return empty grouped_lights for the refresh call
+            let json = #"{"errors":[],"data":[]}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+
+        try await client.recallScene(id: sceneId)
+        #expect(client.activeSceneId == sceneId)
+    }
+
+    @Test func toggleLightRollbackOnHTTPFailure() async throws {
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000006"
+        client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
+        #expect(client.lights.first?.isOn == true)
+
+        let lightsJSON = """
+        {"errors":[],"data":[
+            {"id":"\(validId)","owner":{"rid":"device-A","rtype":"device"},"metadata":{"name":"Lamp","archetype":"classic_bulb"},"on":{"on":true},"dimming":{"brightness":50.0}}
+        ]}
+        """
+
+        var isFirstRequest = true
+        MockURLProtocol.requestHandler = { request in
+            if isFirstRequest {
+                // First request: PUT toggle — return 500 to simulate failure
+                isFirstRequest = false
+                let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+                return (response, Data())
+            }
+            // Second request: GET lights for rollback
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(lightsJSON.utf8))
+        }
+
+        await #expect(throws: HueAPIError.self) {
+            try await client.toggleLight(id: validId, on: false)
+        }
+        // After rollback, light should be back to on
+        #expect(client.lights.first?.isOn == true)
     }
 
     private func makeLight(id: String, name: String, ownerRid: String) -> HueLight {
