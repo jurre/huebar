@@ -5,10 +5,31 @@ APP_NAME="HueBar"
 BUNDLE_ID="com.jurre.huebar"
 APP_DIR="$APP_NAME.app"
 INSTALL_DIR="/Applications"
+VERSION="1.0"
+SKIP_INSTALL=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-install)
+            SKIP_INSTALL=true
+            shift
+            ;;
+        --version)
+            VERSION="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--no-install] [--version VERSION]"
+            exit 1
+            ;;
+    esac
+done
 
 # Quit any running instance first, remember if it was running
 WAS_RUNNING=false
-if pgrep -x "$APP_NAME" > /dev/null 2>&1; then
+if [ "$SKIP_INSTALL" = false ] && pgrep -x "$APP_NAME" > /dev/null 2>&1; then
     WAS_RUNNING=true
     echo "Stopping running $APP_NAME..."
     osascript -e "tell application \"$APP_NAME\" to quit" 2>/dev/null || true
@@ -20,8 +41,10 @@ if pgrep -x "$APP_NAME" > /dev/null 2>&1; then
     fi
 fi
 
-echo "Building release binary..."
-swift build -c release --quiet
+if [ ! -f ".build/release/$APP_NAME" ]; then
+    echo "Building release binary..."
+    swift build -c release --quiet
+fi
 
 echo "Creating app bundle..."
 rm -rf "$APP_DIR"
@@ -47,9 +70,9 @@ cat > "$APP_DIR/Contents/Info.plist" << EOF
     <key>CFBundleIdentifier</key>
     <string>$BUNDLE_ID</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>$VERSION</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$VERSION</string>
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIconFile</key>
@@ -67,20 +90,28 @@ EOF
 # Ad-hoc code sign so macOS doesn't block it
 codesign --force --sign - "$APP_DIR"
 
-echo "Installing to $INSTALL_DIR..."
-if [ -d "$INSTALL_DIR/$APP_DIR" ]; then
-    rm -rf "$INSTALL_DIR/$APP_DIR"
-fi
-cp -R "$APP_DIR" "$INSTALL_DIR/"
-rm -rf "$APP_DIR"
-
-echo ""
-echo "✅ $APP_NAME.app installed to $INSTALL_DIR"
-
-if [ "$WAS_RUNNING" = true ]; then
-    echo "Re-opening $APP_NAME..."
-    open "$INSTALL_DIR/$APP_DIR"
+if [ "$SKIP_INSTALL" = true ]; then
+    # CI mode: create zip instead of installing
+    echo "Creating distributable ZIP..."
+    zip -r "$APP_NAME.zip" "$APP_DIR"
+    echo "✅ $APP_NAME.zip created for distribution"
 else
-    echo "   Open it from Spotlight, Finder, or run:"
-    echo "   open /Applications/$APP_DIR"
+    # Local install mode
+    echo "Installing to $INSTALL_DIR..."
+    if [ -d "$INSTALL_DIR/$APP_DIR" ]; then
+        rm -rf "$INSTALL_DIR/$APP_DIR"
+    fi
+    cp -R "$APP_DIR" "$INSTALL_DIR/"
+    rm -rf "$APP_DIR"
+
+    echo ""
+    echo "✅ $APP_NAME.app installed to $INSTALL_DIR"
+
+    if [ "$WAS_RUNNING" = true ]; then
+        echo "Re-opening $APP_NAME..."
+        open "$INSTALL_DIR/$APP_DIR"
+    else
+        echo "   Open it from Spotlight, Finder, or run:"
+        echo "   open /Applications/$APP_DIR"
+    fi
 fi

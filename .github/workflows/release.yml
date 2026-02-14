@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Sources/**'
+      - 'Resources/**'
+      - 'Package.swift'
+      - 'Package.resolved'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version
+        id: calc-version
+        shell: bash
+        run: |
+          SHORT=$(git rev-parse --short HEAD)
+          TSTAMP=$(date -u +%Y.%m.%d)
+          TAG="v${TSTAMP}-${SHORT}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          git fetch --tags || true
+          if git show-ref --tags --verify --quiet "refs/tags/$TAG"; then
+            echo "skip=yes" >> $GITHUB_OUTPUT
+          else
+            echo "skip=no" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        if: steps.calc-version.outputs.skip == 'no'
+        run: swift build -c release
+
+      - name: Package
+        if: steps.calc-version.outputs.skip == 'no'
+        env:
+          VER: ${{ steps.calc-version.outputs.tag }}
+        run: |
+          ./scripts/install.sh --no-install --version "$VER"
+
+      - name: Notes
+        if: steps.calc-version.outputs.skip == 'no'
+        run: |
+          PREV=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$PREV" ]; then
+            echo "## HueBar - Initial Release" > notes.txt
+            echo "" >> notes.txt
+            echo "Native macOS menubar app for Philips Hue lights" >> notes.txt
+            echo "" >> notes.txt
+            echo "### Features" >> notes.txt
+            echo "- Room and zone control" >> notes.txt
+            echo "- Brightness and color adjustment" >> notes.txt
+            echo "- Scene activation" >> notes.txt
+            echo "- Individual light control" >> notes.txt
+            echo "- Global keyboard shortcuts" >> notes.txt
+            echo "- Sleep/wake automation" >> notes.txt
+          else
+            echo "## Changes" > notes.txt
+            echo "" >> notes.txt
+            git log --oneline ${PREV}..HEAD >> notes.txt
+          fi
+          echo "" >> notes.txt
+          echo "## Install" >> notes.txt
+          echo "1. Download HueBar.zip" >> notes.txt
+          echo "2. Unzip and move to /Applications" >> notes.txt
+          echo "3. Launch and connect to your bridge" >> notes.txt
+
+      - name: Release
+        if: steps.calc-version.outputs.skip == 'no'
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191
+        with:
+          tag_name: ${{ steps.calc-version.outputs.tag }}
+          name: ${{ steps.calc-version.outputs.tag }}
+          body_path: notes.txt
+          files: HueBar.zip
