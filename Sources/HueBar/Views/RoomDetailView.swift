@@ -11,7 +11,9 @@ struct RoomDetailView: View {
     let onBack: () -> Void
 
     @State private var sliderBrightness: Double = 0
+    @State private var sliderMirek: Int = 350
     @State private var debounceTask: Task<Void, Never>?
+    @State private var colorTempDebounceTask: Task<Void, Never>?
     @State private var selectedLightId: String? = nil
 
     private var group: any LightGroup {
@@ -94,7 +96,29 @@ struct RoomDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 8)
+                .padding(.bottom, 4)
+
+                // Color temperature slider
+                if groupedLight?.colorTemperature != nil {
+                    HStack(spacing: 6) {
+                        Image(systemName: "flame")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 12)
+                        ColorTemperatureSlider(mirek: $sliderMirek) { newMirek in
+                            guard let id = groupedLightId else { return }
+                            debounce(task: &colorTempDebounceTask) {
+                                try? await apiClient.setGroupedLightColorTemperature(id: id, mirek: newMirek)
+                            }
+                        }
+                        Image(systemName: "snowflake")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 12)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                }
             }
 
             Divider()
@@ -151,10 +175,16 @@ struct RoomDetailView: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
             sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
+            sliderMirek = groupedLight?.mirek ?? 350
         }
         .onChange(of: groupedLight?.brightness) { _, newValue in
             if let newValue {
                 sliderBrightness = max(newValue, 1)
+            }
+        }
+        .onChange(of: groupedLight?.mirek) { _, newValue in
+            if let newValue {
+                sliderMirek = newValue
             }
         }
         .onChange(of: sliderBrightness) { _, newValue in
@@ -163,7 +193,10 @@ struct RoomDetailView: View {
                 try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
             }
         }
-        .onDisappear { debounceTask?.cancel() }
+        .onDisappear {
+            debounceTask?.cancel()
+            colorTempDebounceTask?.cancel()
+        }
     }
 
 

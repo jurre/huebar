@@ -6,12 +6,12 @@ struct ColorTemperatureSlider: View {
 
     private let mirekRange = 153...500
 
+    private let thumbSize: CGFloat = 14
+    private let trackHeight: CGFloat = 4
+
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let height = geo.size.height
-            let thumbSize: CGFloat = 24
-            let trackHeight: CGFloat = 24
 
             ZStack(alignment: .leading) {
                 // Gradient track
@@ -29,11 +29,11 @@ struct ColorTemperatureSlider: View {
                 // Thumb
                 Circle()
                     .fill(.white)
-                    .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                     .frame(width: thumbSize, height: thumbSize)
                     .offset(x: thumbOffset(width: width, thumbSize: thumbSize))
             }
-            .frame(height: height)
+            .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -47,7 +47,7 @@ struct ColorTemperatureSlider: View {
                     }
             )
         }
-        .frame(height: 28)
+        .frame(height: thumbSize)
     }
 
     private func thumbOffset(width: CGFloat, thumbSize: CGFloat) -> CGFloat {

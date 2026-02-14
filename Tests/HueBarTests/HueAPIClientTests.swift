@@ -133,7 +133,7 @@ struct HueAPIClientTests {
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000001"
         client.groupedLights = [
-            GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 80.0)),
+            GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 80.0), colorTemperature: nil),
         ]
 
         MockURLProtocol.requestHandler = { request in
@@ -195,8 +195,8 @@ struct HueAPIClientTests {
     @Test func groupedLightLookup() {
         let client = makeClient()
         client.groupedLights = [
-            GroupedLight(id: "gl-1", on: OnState(on: true), dimming: nil),
-            GroupedLight(id: "gl-2", on: OnState(on: false), dimming: nil),
+            GroupedLight(id: "gl-1", on: OnState(on: true), dimming: nil, colorTemperature: nil),
+            GroupedLight(id: "gl-2", on: OnState(on: false), dimming: nil, colorTemperature: nil),
         ]
 
         let found = client.groupedLight(for: "gl-2")
