@@ -58,20 +58,11 @@ jobs:
           echo "Native macOS menubar app for controlling Philips Hue lights" >> notes.txt
           echo "" >> notes.txt
           
-          # Generate changelog with AI summary
+          # Generate changelog
           if [ -n "$PREV" ]; then
             echo "### What's Changed" >> notes.txt
             echo "" >> notes.txt
-            
-            # Get commit messages since last tag
-            COMMITS=$(git log --pretty=format:"- %s" ${PREV}..HEAD)
-            
-            # Use GitHub Copilot CLI to summarize if available, otherwise use commits directly
-            if command -v gh &> /dev/null && gh copilot --version &> /dev/null 2>&1; then
-              echo "$COMMITS" | gh copilot explain --prompt "Summarize these git commits into user-friendly release notes" >> notes.txt 2>/dev/null || echo "$COMMITS" >> notes.txt
-            else
-              echo "$COMMITS" >> notes.txt
-            fi
+            git log --pretty=format:"- %s" ${PREV}..HEAD >> notes.txt
             echo "" >> notes.txt
           else
             echo "### Features" >> notes.txt
