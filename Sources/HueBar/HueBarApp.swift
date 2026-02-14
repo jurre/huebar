@@ -18,6 +18,7 @@ struct HueBarApp: App {
             if let client {
                 Self.configureHotkeyHandler(_hotkeyManager.wrappedValue, client: client)
                 _sleepWakeManager.wrappedValue.configure(apiClient: client)
+                Task { await client.fetchAll(); client.startEventStream() }
             }
         }
     }
