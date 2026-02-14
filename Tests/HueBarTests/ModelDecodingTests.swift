@@ -263,4 +263,60 @@ struct ModelDecodingTests {
         #expect(scene.isDynamicActive == false)
         #expect(scene.hasPalette == false)
     }
+
+    // MARK: - supportsDynamic
+
+    @Test func supportsDynamicWithPaletteOnly() throws {
+        let json = """
+        {
+            "id": "scene-palette",
+            "metadata": {"name": "With Palette"},
+            "group": {"rid": "room-1", "rtype": "room"},
+            "palette": {"color": [], "color_temperature": [{"color_temperature": {"mirek": 350}}]}
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.supportsDynamic == true)
+    }
+
+    @Test func supportsDynamicWithAutoDynamicOnly() throws {
+        let json = """
+        {
+            "id": "scene-auto",
+            "metadata": {"name": "Auto Dynamic"},
+            "group": {"rid": "room-1", "rtype": "room"},
+            "auto_dynamic": true
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.supportsDynamic == true)
+    }
+
+    @Test func supportsDynamicFalseWhenNoPaletteAndNoAutoDynamic() throws {
+        let json = """
+        {
+            "id": "scene-none",
+            "metadata": {"name": "No Dynamic"},
+            "group": {"rid": "room-1", "rtype": "room"}
+        }
+        """
+        let scene = try decoder.decode(HueScene.self, from: Data(json.utf8))
+        #expect(scene.supportsDynamic == false)
+    }
+
+    // MARK: - Event stream speed decoding
+
+    @Test func eventResourceDecodesSpeedField() throws {
+        let json = """
+        {
+            "id": "scene-1",
+            "type": "scene",
+            "speed": 0.42,
+            "status": {"active": "dynamic_palette"}
+        }
+        """
+        let resource = try decoder.decode(HueEventResource.self, from: Data(json.utf8))
+        #expect(resource.speed == 0.42)
+        #expect(resource.status?.active == .dynamicPalette)
+    }
 }

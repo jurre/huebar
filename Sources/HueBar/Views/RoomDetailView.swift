@@ -140,6 +140,8 @@ struct RoomDetailView: View {
                         Slider(value: $sliderSpeed, in: 0...1)
                             .controlSize(.small)
                             .tint(.hueAccent)
+                            .accessibilityLabel("Scene speed")
+                            .accessibilityValue(String(format: "%.0f%%", sliderSpeed * 100))
                         Image(systemName: "hare")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -180,13 +182,8 @@ struct RoomDetailView: View {
                                         },
                                         onPlayPause: {
                                             Task {
-                                                if sceneIsActive {
-                                                    // Toggle dynamic mode on the active scene
-                                                    try? await apiClient.recallScene(id: scene.id, dynamic: !isActiveSceneDynamic)
-                                                } else {
-                                                    // Activate this scene in dynamic mode
-                                                    try? await apiClient.recallScene(id: scene.id, dynamic: true)
-                                                }
+                                                // Toggle dynamic mode on the active scene
+                                                try? await apiClient.recallScene(id: scene.id, dynamic: !isActiveSceneDynamic)
                                             }
                                         }
                                     )

@@ -371,6 +371,8 @@ final class HueAPIClient {
         guard Self.isValidResourceId(id) else {
             throw HueAPIError.invalidResourceId
         }
+        let previousSceneId = activeSceneId
+        let previousIsDynamic = activeSceneIsDynamic
         activeSceneId = id
         activeSceneIsDynamic = dynamic
         let action = dynamic ? "dynamic_palette" : "active"
@@ -379,6 +381,9 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
+            // Rollback optimistic update
+            activeSceneId = previousSceneId
+            activeSceneIsDynamic = previousIsDynamic
             throw HueAPIError.invalidResponse
         }
         // Refresh grouped lights to reflect scene's brightness/on state
@@ -392,6 +397,9 @@ final class HueAPIClient {
         }
         let clamped = min(max(speed, 0.0), 1.0)
 
+        // Save previous speed for rollback
+        let previousSpeed = scenes.first(where: { $0.id == id })?.speed
+
         // Optimistic update
         updateSceneSpeed(id: id, speed: clamped)
 
@@ -400,6 +408,10 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
+            // Rollback optimistic update
+            if let previousSpeed {
+                updateSceneSpeed(id: id, speed: previousSpeed)
+            }
             throw HueAPIError.invalidResponse
         }
     }
@@ -423,6 +435,21 @@ final class HueAPIClient {
             status: scene.status,
             palette: scene.palette,
             speed: speed,
+            autoDynamic: scene.autoDynamic
+        )
+    }
+
+    private func updateSceneStatus(id: String, status: HueSceneStatus) {
+        guard let index = scenes.firstIndex(where: { $0.id == id }) else { return }
+        let scene = scenes[index]
+        scenes[index] = HueScene(
+            id: scene.id,
+            type: scene.type,
+            metadata: scene.metadata,
+            group: scene.group,
+            status: status,
+            palette: scene.palette,
+            speed: scene.speed,
             autoDynamic: scene.autoDynamic
         )
     }
@@ -476,6 +503,7 @@ final class HueAPIClient {
                                 activeSceneId = resource.id
                                 activeSceneIsDynamic = true
                             }
+                            updateSceneStatus(id: resource.id, status: resource.status!)
                         }
                         if let speed = resource.speed {
                             updateSceneSpeed(id: resource.id, speed: speed)

@@ -29,7 +29,7 @@ struct HueScene: Decodable, Sendable, Identifiable {
         status?.active == .dynamicPalette
     }
 
-    /// Whether this scene has a color palette (used to decide whether to show play button)
+    /// Whether this scene has any palette colors (used by the UI for gradient display)
     var hasPalette: Bool {
         !paletteEntries.isEmpty
     }

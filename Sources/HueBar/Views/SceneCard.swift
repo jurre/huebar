@@ -55,6 +55,7 @@ struct SceneCard: View {
                 .frame(width: 34, height: 34)
                 .background(.black.opacity(0.35), in: Circle())
         }
+        .accessibilityLabel(isDynamic ? "Pause dynamic scene" : "Play dynamic scene")
         .buttonStyle(.plain)
     }
 
