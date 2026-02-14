@@ -7,7 +7,8 @@ enum EventStreamUpdater {
         groupedLights[index] = GroupedLight(
             id: existing.id,
             on: event.on ?? existing.on,
-            dimming: event.dimming ?? existing.dimming
+            dimming: event.dimming ?? existing.dimming,
+            colorTemperature: existing.colorTemperature
         )
     }
 

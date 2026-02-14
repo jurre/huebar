@@ -245,7 +245,8 @@ final class HueAPIClient {
             groupedLights[index] = GroupedLight(
                 id: id,
                 on: OnState(on: on),
-                dimming: groupedLights[index].dimming
+                dimming: groupedLights[index].dimming,
+                colorTemperature: groupedLights[index].colorTemperature
             )
         }
 
@@ -275,7 +276,8 @@ final class HueAPIClient {
             groupedLights[index] = GroupedLight(
                 id: groupedLightId,
                 on: groupedLights[index].on,
-                dimming: DimmingState(brightness: clampedBrightness)
+                dimming: DimmingState(brightness: clampedBrightness),
+                colorTemperature: groupedLights[index].colorTemperature
             )
         }
 
@@ -288,6 +290,32 @@ final class HueAPIClient {
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             // Revert on failure
+            groupedLights = try await fetchGroupedLights()
+            throw HueAPIError.invalidResponse
+        }
+    }
+
+    /// Set color temperature for a grouped light (153–500 mirek)
+    func setGroupedLightColorTemperature(id: String, mirek: Int) async throws {
+        guard Self.isValidResourceId(id) else {
+            throw HueAPIError.invalidResourceId
+        }
+        let clamped = min(max(mirek, 153), 500)
+
+        if let index = groupedLights.firstIndex(where: { $0.id == id }) {
+            groupedLights[index] = GroupedLight(
+                id: id,
+                on: groupedLights[index].on,
+                dimming: groupedLights[index].dimming,
+                colorTemperature: LightColorTemperature(mirek: clamped, mirekValid: true)
+            )
+        }
+
+        let body = try JSONEncoder().encode(["color_temperature": ["mirek": clamped]])
+        let request = try makeRequest(path: "grouped_light/\(id)", method: "PUT", body: body)
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
             groupedLights = try await fetchGroupedLights()
             throw HueAPIError.invalidResponse
         }
