@@ -56,6 +56,14 @@ struct LightRowView: View {
                     .disabled(groupedLightId == nil)
             }
 
+            // Active scene indicator
+            if let sceneName = apiClient.activeScene(for: groupId)?.name, isOn {
+                Text(sceneName)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .shadow(color: .black.opacity(0.3), radius: 1, y: 1)
+            }
+
             // Brightness slider (always visible for consistent card height)
             HStack(spacing: 4) {
                 Image(systemName: "sun.min")
