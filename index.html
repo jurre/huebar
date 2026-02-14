@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HueBar — Control Philips Hue from your Mac menu bar</title>
+  <meta name="description" content="A free, open-source macOS menubar app for controlling Philips Hue lights. Rooms, scenes, color picker, keyboard shortcuts, and sleep/wake automation.">
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #111111;
+      --bg-surface: #1a1a1a;
+      --bg-card: #222222;
+      --text: #f0f0f0;
+      --text-secondary: #999999;
+      --accent: #e8a035;
+      --accent-dim: rgba(232, 160, 53, 0.15);
+      --radius: 12px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Layout */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section {
+      padding: 80px 0;
+    }
+
+    /* Hero */
+    .hero {
+      padding: 120px 0 80px;
+      text-align: center;
+    }
+
+    .hero-icon {
+      font-size: 56px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 span {
+      color: var(--accent);
+    }
+
+    .hero p {
+      font-size: 20px;
+      color: var(--text-secondary);
+      max-width: 520px;
+      margin: 0 auto 36px;
+      line-height: 1.5;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #111;
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 4px 20px rgba(232, 160, 53, 0.35);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid #333;
+    }
+
+    .btn-secondary:hover {
+      border-color: #555;
+    }
+
+    .badge-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 28px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+      border: 1px solid #2a2a2a;
+    }
+
+    /* Screenshots */
+    .screenshots {
+      padding: 40px 0 80px;
+    }
+
+    .screenshots-scroll {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .screenshot {
+      flex: 0 0 auto;
+      width: 200px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--bg-card);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+      transition: transform 0.2s ease;
+    }
+
+    .screenshot:hover {
+      transform: translateY(-4px);
+    }
+
+    .screenshot img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .screenshot-label {
+      padding: 10px 0;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* Section headings */
+    .section-heading {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .section-heading h2 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+
+    .section-heading p {
+      color: var(--text-secondary);
+      font-size: 17px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* Features grid */
+    .features {
+      background: var(--bg-surface);
+      border-top: 1px solid #222;
+      border-bottom: 1px solid #222;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      border: 1px solid #2a2a2a;
+      transition: border-color 0.2s ease;
+    }
+
+    .feature-card:hover {
+      border-color: #444;
+    }
+
+    .feature-icon {
+      font-size: 28px;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Installation */
+    .install {
+      text-align: center;
+    }
+
+    .install-block {
+      max-width: 520px;
+      margin: 0 auto;
+      background: var(--bg-card);
+      border: 1px solid #2a2a2a;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      text-align: left;
+    }
+
+    .install-block code {
+      display: block;
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", Menlo, Consolas, monospace;
+      font-size: 14px;
+      line-height: 2;
+      color: var(--text);
+    }
+
+    .install-block code .prompt {
+      color: var(--accent);
+      user-select: none;
+    }
+
+    .install-note {
+      margin-top: 20px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .install-note code {
+      background: var(--bg-card);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid #222;
+      padding: 40px 0;
+      text-align: center;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.15s ease;
+    }
+
+    .footer-links a:hover {
+      color: var(--text);
+    }
+
+    .footer-copy {
+      font-size: 13px;
+      color: #555;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero {
+        padding: 80px 0 60px;
+      }
+
+      .hero h1 {
+        font-size: 36px;
+      }
+
+      .hero p {
+        font-size: 17px;
+      }
+
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .screenshot {
+        width: 160px;
+      }
+
+      section {
+        padding: 60px 0;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero h1 {
+        font-size: 28px;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .screenshot {
+        width: 140px;
+      }
+
+      .install-block {
+        padding: 20px;
+      }
+
+      .install-block code {
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <span class="hero-icon" aria-hidden="true">💡</span>
+      <h1>Hue<span>Bar</span></h1>
+      <p>Control your Philips Hue lights from your Mac menu bar. Free, open-source, and built with SwiftUI.</p>
+      <div class="hero-buttons">
+        <a href="https://github.com/jurre/huebar#installation" class="btn btn-primary">Get Started</a>
+        <a href="https://github.com/jurre/huebar" class="btn btn-secondary">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </div>
+      <div class="badge-row">
+        <span class="badge">Free &amp; Open Source</span>
+        <span class="badge">Lives in Your Menu Bar</span>
+        <span class="badge">Keyboard Shortcuts</span>
+        <span class="badge">Real-time Updates</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section class="screenshots">
+    <div class="container">
+      <div class="screenshots-scroll">
+        <div class="screenshot">
+          <img src="https://raw.githubusercontent.com/jurre/huebar/main/screenshots/rooms.png" alt="HueBar rooms view showing room list with brightness sliders and on/off toggles" loading="lazy">
+          <div class="screenshot-label">Rooms</div>
+        </div>
+        <div class="screenshot">
+          <img src="https://raw.githubusercontent.com/jurre/huebar/main/screenshots/room-detail.png" alt="HueBar room detail view showing scenes and individual lights" loading="lazy">
+          <div class="screenshot-label">Scenes &amp; Lights</div>
+        </div>
+        <div class="screenshot">
+          <img src="https://raw.githubusercontent.com/jurre/huebar/main/screenshots/light-detail.png" alt="HueBar color picker with color wheel and temperature slider" loading="lazy">
+          <div class="screenshot-label">Color Picker</div>
+        </div>
+        <div class="screenshot">
+          <img src="https://raw.githubusercontent.com/jurre/huebar/main/screenshots/settings.png" alt="HueBar settings showing keyboard shortcuts and sleep/wake rules" loading="lazy">
+          <div class="screenshot-label">Settings</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features">
+    <div class="container">
+      <div class="section-heading">
+        <h2>Everything you need</h2>
+        <p>Full Hue control without leaving your keyboard or opening a phone app.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="feature-icon" aria-hidden="true">🏠</span>
+          <h3>Rooms &amp; Zones</h3>
+          <p>View all rooms and zones with on/off toggles and brightness sliders.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon" aria-hidden="true">🎚️</span>
+          <h3>Brightness Control</h3>
+          <p>Adjust brightness per room, zone, or individual light with smooth sliders.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon" aria-hidden="true">🎨</span>
+          <h3>Scenes</h3>
+          <p>Browse and activate saved scenes in a color-coded grid with palette previews.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon" aria-hidden="true">🌈</span>
+          <h3>Color Picker</h3>
+          <p>Full color wheel and color temperature slider for per-light control.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon" aria-hidden="true">⌨️</span>
+          <h3>Keyboard Shortcuts</h3>
+          <p>System-wide hotkeys to toggle any room on or off from any app.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon" aria-hidden="true">😴</span>
+          <h3>Sleep/Wake Automation</h3>
+          <p>Automatically turn lights off on sleep and back on when your Mac wakes.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon" aria-hidden="true">🔄</span>
+          <h3>Real-time Updates</h3>
+          <p>Live state sync via Server-Sent Events from your Hue Bridge.</p>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon" aria-hidden="true">🪶</span>
+          <h3>Lightweight</h3>
+          <p>Native SwiftUI, zero external dependencies. Lives quietly in your menu bar.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Installation -->
+  <section class="install">
+    <div class="container">
+      <div class="section-heading">
+        <h2>Install in seconds</h2>
+        <p>Clone, build, and install with a single script.</p>
+      </div>
+      <div class="install-block">
+        <code>
+          <span class="prompt">$</span> git clone https://github.com/jurre/huebar.git<br>
+          <span class="prompt">$</span> cd huebar<br>
+          <span class="prompt">$</span> ./scripts/install.sh
+        </code>
+      </div>
+      <p class="install-note">Requires macOS 15 (Sequoia) and a Philips Hue Bridge on your network.<br>Or run from source with <code>swift run</code>.</p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-links">
+        <a href="https://github.com/jurre/huebar">GitHub</a>
+        <a href="https://github.com/jurre/huebar#installation">Installation</a>
+        <a href="https://github.com/jurre/huebar/blob/main/CONTRIBUTING.md">Contributing</a>
+        <a href="https://github.com/jurre/huebar/issues">Issues</a>
+      </div>
+      <p class="footer-copy">MIT License &middot; Built by <a href="https://github.com/jurre" style="color: var(--text-secondary); text-decoration: none;">@jurre</a></p>
+    </div>
+  </footer>
+
+</body>
+</html>
