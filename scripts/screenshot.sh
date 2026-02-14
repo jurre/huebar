@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SCREENSHOT_DIR="screenshots"
-DELAY=3
+DELAY=5
 mkdir -p "$SCREENSHOT_DIR"
 
 capture() {
