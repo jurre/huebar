@@ -20,6 +20,7 @@ final class SleepWakeManager {
     // MARK: - Public API
 
     func add(config: SleepWakeConfig) {
+        guard !configs.contains(where: { $0.targetId == config.targetId }) else { return }
         configs.append(config)
         saveConfigs()
     }
@@ -75,12 +76,13 @@ final class SleepWakeManager {
 
     private func handleSleep() async {
         guard let apiClient else { return }
-
-        for config in configs where config.mode == .sleepOnly || config.mode == .both {
-            guard let groupedLightId = groupedLightId(for: config, apiClient: apiClient) else { continue }
-            let light = apiClient.groupedLight(for: groupedLightId)
-            guard light?.isOn == true else { continue }
-            try? await apiClient.toggleGroupedLight(id: groupedLightId, on: false)
+        let sleepConfigs = configs.filter { $0.mode == .sleepOnly || $0.mode == .both }
+        await withTaskGroup(of: Void.self) { group in
+            for config in sleepConfigs {
+                guard let glId = groupedLightId(for: config, apiClient: apiClient),
+                      apiClient.groupedLight(for: glId)?.isOn == true else { continue }
+                group.addTask { try? await apiClient.toggleGroupedLight(id: glId, on: false) }
+            }
         }
     }
 
