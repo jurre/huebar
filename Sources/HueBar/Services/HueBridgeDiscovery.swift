@@ -1,6 +1,5 @@
 import Foundation
 import Network
-import SwiftUI
 import os
 
 struct DiscoveredBridge: Identifiable, Hashable {
@@ -130,7 +129,7 @@ final class HueBridgeDiscovery {
                 }
 
                 let bridges = try JSONDecoder().decode([CloudDiscoveryResult].self, from: data)
-                for bridge in bridges {
+                for bridge in bridges where IPValidation.isValid(bridge.internalipaddress) {
                     let discovered = DiscoveredBridge(
                         id: bridge.id,
                         ip: bridge.internalipaddress,

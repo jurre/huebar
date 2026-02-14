@@ -1,5 +1,3 @@
-import Foundation
-
 enum ArchetypeIcon {
     private static let mapping: [String: String] = [
         "living_room": "sofa.fill",

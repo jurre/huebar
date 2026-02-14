@@ -47,7 +47,7 @@ struct ColorConversionTests {
     @Test("colorFromMirek warm temperature not washed out")
     func colorFromMirekNotWashedOut() {
         // Very warm (2000K = 500 mirek)
-        let warm = CIEXYColor.colorFromMirek(500, brightness: 100)
+        let warm = CIEXYColor.colorFromMirek(500)
         let hsb = extractHSB(from: warm)
         // Saturation should be meaningful, not washed out by excessive white blend
         #expect(hsb.saturation > 0.1, "Warm mirek color should have visible saturation, got \(hsb.saturation)")
@@ -56,7 +56,7 @@ struct ColorConversionTests {
     @Test("colorFromMirek cool temperature stays bluish")
     func colorFromMirekCoolStaysBluish() {
         // Cool daylight (6500K = 153 mirek)
-        let cool = CIEXYColor.colorFromMirek(153, brightness: 100)
+        let cool = CIEXYColor.colorFromMirek(153)
         let hsb = extractHSB(from: cool)
         // Should still be near white/blue, brightness should be high
         #expect(hsb.brightness > 0.8, "Cool mirek should be bright")

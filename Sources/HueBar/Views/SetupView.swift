@@ -5,7 +5,6 @@ struct SetupView: View {
     @Bindable var authService: HueAuthService
 
     @State private var manualIP: String = ""
-    @State private var pulseAnimation: Bool = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -175,7 +174,7 @@ struct SetupView: View {
 
     private func connectManual() {
         let ip = manualIP.trimmingCharacters(in: .whitespaces)
-        guard !ip.isEmpty else { return }
+        guard IPValidation.isValid(ip) else { return }
         authService.authenticate(bridgeIP: ip)
     }
 }

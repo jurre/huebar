@@ -40,7 +40,13 @@ final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sen
             }
         } else {
             // First connection — pin the certificate
-            try? CredentialStore.updateCertificateHash(certHash)
+            do {
+                try CredentialStore.updateCertificateHash(certHash)
+            } catch {
+                // Can't persist the hash — refuse the connection so we never
+                // trust a certificate we won't be able to verify next time.
+                return (.cancelAuthenticationChallenge, nil)
+            }
         }
 
         let credential = URLCredential(trust: serverTrust)

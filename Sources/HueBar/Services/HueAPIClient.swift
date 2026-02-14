@@ -28,8 +28,6 @@ final class HueAPIClient {
     var activeSceneId: String?
     var isLoading: Bool = false
     var lastError: String?
-    /// Cached scene image data keyed by image resource ID
-    var sceneImageData: [String: Data] = [:]
 
     let orderManager = RoomOrderManager()
 
@@ -83,9 +81,6 @@ final class HueAPIClient {
         }
 
         isLoading = false
-
-        // Fetch scene images in the background (non-blocking)
-        await fetchSceneImages()
     }
 
     /// Fetch rooms from the bridge
@@ -113,20 +108,6 @@ final class HueAPIClient {
         try await fetch(path: "light")
     }
 
-    /// Fetch scene images from the bridge and cache their data.
-    /// Note: Scene images are hosted on the Philips Hue cloud, not the bridge.
-    /// The bridge API does not expose an endpoint to retrieve them.
-    /// Scene cards use palette color gradients instead.
-    func fetchSceneImages() async {
-        // No-op: scene images are cloud-hosted and not accessible via the bridge API
-    }
-
-    /// Get cached image data for a scene, if available
-    func imageData(forScene scene: HueScene) -> Data? {
-        guard let imageRid = scene.metadata.image?.rid else { return nil }
-        return sceneImageData[imageRid]
-    }
-
     /// Toggle an individual light on/off
     func toggleLight(id: String, on: Bool) async throws {
         guard Self.isValidResourceId(id) else {
@@ -138,7 +119,7 @@ final class HueAPIClient {
             lights[index] = HueLight(
                 id: id, owner: light.owner, metadata: light.metadata,
                 on: OnState(on: on), dimming: light.dimming,
-                color: light.color, color_temperature: light.color_temperature
+                color: light.color, colorTemperature: light.colorTemperature
             )
         }
 
@@ -167,7 +148,7 @@ final class HueAPIClient {
             lights[index] = HueLight(
                 id: id, owner: light.owner, metadata: light.metadata,
                 on: light.on, dimming: DimmingState(brightness: clamped),
-                color: light.color, color_temperature: light.color_temperature
+                color: light.color, colorTemperature: light.colorTemperature
             )
         }
 
@@ -196,7 +177,7 @@ final class HueAPIClient {
             lights[index] = HueLight(
                 id: id, owner: light.owner, metadata: light.metadata,
                 on: light.on, dimming: light.dimming,
-                color: LightColor(xy: xy), color_temperature: light.color_temperature
+                color: LightColor(xy: xy), colorTemperature: light.colorTemperature
             )
         }
 
@@ -223,7 +204,7 @@ final class HueAPIClient {
             lights[index] = HueLight(
                 id: id, owner: light.owner, metadata: light.metadata,
                 on: light.on, dimming: light.dimming,
-                color: light.color, color_temperature: LightColorTemperature(mirek: clampedMirek, mirek_valid: true)
+                color: light.color, colorTemperature: LightColorTemperature(mirek: clampedMirek, mirekValid: true)
             )
         }
 
@@ -251,8 +232,7 @@ final class HueAPIClient {
 
     /// Validate that a resource ID matches the expected Hue API UUID format
     private static func isValidResourceId(_ id: String) -> Bool {
-        let uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-        return id.wholeMatch(of: uuidRegex) != nil
+        UUID(uuidString: id) != nil
     }
 
     /// Toggle a grouped light on/off
@@ -330,7 +310,7 @@ final class HueAPIClient {
         guard let groupId else { return nil }
         // Check scenes where the API reports active status
         if let active = scenes.first(where: {
-            $0.group.rid == groupId && $0.status?.active == "active"
+            $0.group.rid == groupId && $0.status?.active == .active
         }) {
             return active
         }
@@ -441,13 +421,13 @@ final class HueAPIClient {
             switch event.type {
             case .update:
                 for resource in event.data {
-                    switch resource.resourceType {
+                    switch resource.type {
                     case "grouped_light":
                         EventStreamUpdater.apply(resource, to: &groupedLights)
                     case "light":
                         EventStreamUpdater.apply(resource, to: &lights)
                     case "scene":
-                        if resource.status?.active == "static" {
+                        if resource.status?.active == .static {
                             activeSceneId = resource.id
                         }
                     default:

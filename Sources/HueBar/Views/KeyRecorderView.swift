@@ -22,11 +22,12 @@ struct KeyRecorderView: NSViewRepresentable {
     }
 }
 
+@MainActor
 final class KeyRecorderNSView: NSView {
     var onRecorded: ((UInt32, UInt32) -> Void)?
     var currentKeyCode: UInt32?
     var currentModifierFlags: UInt32?
-    private nonisolated(unsafe) var isRecording = false
+    private var isRecording = false
     private nonisolated(unsafe) var monitor: Any?
 
     deinit {

@@ -299,7 +299,7 @@ struct HueAPIClientTests {
             on: OnState(on: true),
             dimming: DimmingState(brightness: 50),
             color: nil,
-            color_temperature: nil
+            colorTemperature: nil
         )
     }
 }

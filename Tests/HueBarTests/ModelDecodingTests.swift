@@ -130,7 +130,7 @@ struct ModelDecodingTests {
         #expect(light.brightness == 75.5)
         #expect(light.owner.rid == "device-1")
         #expect(light.color?.xy.x == 0.5)
-        #expect(light.color_temperature?.mirek == 350)
+        #expect(light.colorTemperature?.mirek == 350)
     }
 
     @Test func lightDecodingWhiteOnly() throws {
@@ -147,6 +147,6 @@ struct ModelDecodingTests {
         #expect(light.id == "light-2")
         #expect(light.isOn == false)
         #expect(light.color == nil)
-        #expect(light.color_temperature == nil)
+        #expect(light.colorTemperature == nil)
     }
 }

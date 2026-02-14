@@ -74,12 +74,4 @@ final class RoomOrderManager {
     func saveOrder<T: Identifiable>(_ items: [T], key: String) where T.ID == String {
         UserDefaults.standard.set(items.map(\.id), forKey: key)
     }
-
-    func applySavedOrder<T: Identifiable>(_ items: [T], key: String) -> [T] where T.ID == String {
-        guard let savedOrder = UserDefaults.standard.stringArray(forKey: key) else { return items }
-        let lookup = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
-        let ordered = savedOrder.compactMap { lookup[$0] }
-        let remaining = items.filter { !savedOrder.contains($0.id) }
-        return ordered + remaining
-    }
 }

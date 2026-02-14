@@ -86,7 +86,7 @@ struct LightDetailView: View {
         if let xy = light.color?.xy {
             colorXY = xy
         }
-        if let mirek = light.color_temperature?.mirek {
+        if let mirek = light.colorTemperature?.mirek {
             colorTempMirek = mirek
         }
     }

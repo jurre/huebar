@@ -22,10 +22,10 @@ struct HueScene: Decodable, Sendable, Identifiable {
         }
 
         // Fall back to color temperature (warm/cool whites)
-        if let temps = palette.color_temperature, !temps.isEmpty {
+        if let temps = palette.colorTemperature, !temps.isEmpty {
             return temps.compactMap { entry in
-                guard let mirek = entry.color_temperature?.mirek else { return nil }
-                return CIEXYColor.colorFromMirek(mirek, brightness: entry.dimming?.brightness ?? 80)
+                guard let mirek = entry.colorTemperature?.mirek else { return nil }
+                return CIEXYColor.colorFromMirek(mirek)
             }
         }
 
@@ -38,14 +38,25 @@ struct HueSceneMetadata: Decodable, Sendable {
     let image: ResourceLink?
 }
 
+enum HueSceneActiveState: String, Decodable, Sendable {
+    case active
+    case `static`
+    case inactive
+}
+
 struct HueSceneStatus: Decodable, Sendable {
-    let active: String?
+    let active: HueSceneActiveState?
 }
 
 struct HueScenePalette: Decodable, Sendable {
     let color: [HueScenePaletteColor]
     let dimming: [HueScenePaletteDimming]?
-    let color_temperature: [HueScenePaletteColorTemp]?
+    let colorTemperature: [HueScenePaletteColorTemp]?
+
+    enum CodingKeys: String, CodingKey {
+        case color, dimming
+        case colorTemperature = "color_temperature"
+    }
 }
 
 struct HueScenePaletteColor: Decodable, Sendable {
@@ -67,8 +78,13 @@ struct HueScenePaletteDimming: Decodable, Sendable {
 }
 
 struct HueScenePaletteColorTemp: Decodable, Sendable {
-    let color_temperature: HueColorTemperature?
+    let colorTemperature: HueColorTemperature?
     let dimming: HueScenePaletteDimming?
+
+    enum CodingKeys: String, CodingKey {
+        case colorTemperature = "color_temperature"
+        case dimming
+    }
 }
 
 struct HueColorTemperature: Decodable, Sendable {

@@ -93,7 +93,7 @@ extension CIEXYColor {
 
     /// Convert mirek color temperature to an approximate color.
     /// Mirek range: 153 (cool/blue, 6500K) to 500 (warm/orange, 2000K).
-    static func colorFromMirek(_ mirek: Int, brightness: Double) -> Color {
+    static func colorFromMirek(_ mirek: Int) -> Color {
         let kelvin = 1_000_000.0 / Double(max(mirek, 153))
         let temp = kelvin / 100.0
 

@@ -21,7 +21,7 @@ enum EventStreamUpdater {
             on: event.on ?? existing.on,
             dimming: event.dimming ?? existing.dimming,
             color: event.color.map { LightColor(xy: $0.xy) } ?? existing.color,
-            color_temperature: event.color_temperature.map { LightColorTemperature(mirek: $0.mirek, mirek_valid: $0.mirek_valid) } ?? existing.color_temperature
+            colorTemperature: event.colorTemperature.map { LightColorTemperature(mirek: $0.mirek, mirekValid: $0.mirekValid) } ?? existing.colorTemperature
         )
     }
 }

@@ -1,6 +1,5 @@
 import Foundation
 import AppKit
-import Observation
 
 @Observable
 @MainActor
@@ -91,12 +90,15 @@ final class SleepWakeManager {
 
         guard let apiClient else { return }
 
-        for config in configs where config.mode == .wakeOnly || config.mode == .both {
-            guard let groupedLightId = groupedLightId(for: config, apiClient: apiClient) else { continue }
-            if let sceneId = config.wakeSceneId {
-                try? await apiClient.recallScene(id: sceneId)
-            } else {
-                try? await apiClient.toggleGroupedLight(id: groupedLightId, on: true)
+        let wakeConfigs = configs.filter { $0.mode == .wakeOnly || $0.mode == .both }
+        await withTaskGroup(of: Void.self) { group in
+            for config in wakeConfigs {
+                guard let glId = groupedLightId(for: config, apiClient: apiClient) else { continue }
+                if let sceneId = config.wakeSceneId {
+                    group.addTask { try? await apiClient.recallScene(id: sceneId) }
+                } else {
+                    group.addTask { try? await apiClient.toggleGroupedLight(id: glId, on: true) }
+                }
             }
         }
     }

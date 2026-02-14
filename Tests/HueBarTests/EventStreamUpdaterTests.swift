@@ -70,7 +70,7 @@ struct EventStreamUpdaterTests {
         #expect(lights[0].name == "Desk Lamp")
         #expect(lights[0].owner.rid == "device-1")
         #expect(lights[0].color?.xy.x == 0.5)
-        #expect(lights[0].color_temperature?.mirek == 350)
+        #expect(lights[0].colorTemperature?.mirek == 350)
     }
 
     // MARK: - Unknown ID

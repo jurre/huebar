@@ -60,7 +60,7 @@ struct ColorTemperatureSlider: View {
     private var temperatureGradientColors: [Color] {
         // Generate smooth gradient from warm (500 mirek) to cool (153 mirek)
         stride(from: 500, through: 153, by: -50).map { mirekVal in
-            CIEXYColor.colorFromMirek(mirekVal, brightness: 100)
+            CIEXYColor.colorFromMirek(mirekVal)
         }
     }
 }

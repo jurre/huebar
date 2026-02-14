@@ -20,6 +20,15 @@ enum CredentialStore {
         storageDirectory.appendingPathComponent("last_bridge_ip")
     }
 
+    private static func ensureStorageDirectory() throws {
+        let fm = FileManager.default
+        try fm.createDirectory(
+            at: storageDirectory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+    }
+
     struct Credentials: Codable {
         var bridgeIP: String
         var applicationKey: String
@@ -27,14 +36,10 @@ enum CredentialStore {
     }
 
     static func save(credentials: Credentials) throws {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: storageDirectory.path) {
-            try fm.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
-        }
-        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: storageDirectory.path)
+        try ensureStorageDirectory()
         let data = try JSONEncoder().encode(credentials)
         try data.write(to: credentialsFile, options: .atomic)
-        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: credentialsFile.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: credentialsFile.path)
         try? saveLastBridgeIP(credentials.bridgeIP)
     }
 
@@ -45,14 +50,10 @@ enum CredentialStore {
 
     static func updateCertificateHash(_ hash: String) throws {
         // Save cert hash independently so TOFU works before credentials exist
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: storageDirectory.path) {
-            try fm.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
-        }
-        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: storageDirectory.path)
+        try ensureStorageDirectory()
         let data = Data(hash.utf8)
         try data.write(to: certHashFile, options: .atomic)
-        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: certHashFile.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: certHashFile.path)
 
         // Also update credentials if they exist
         if var creds = load() {
@@ -72,14 +73,10 @@ enum CredentialStore {
 
     /// Save bridge IP independently so it survives credential deletion.
     static func saveLastBridgeIP(_ ip: String) throws {
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: storageDirectory.path) {
-            try fm.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
-        }
-        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: storageDirectory.path)
+        try ensureStorageDirectory()
         let data = Data(ip.utf8)
         try data.write(to: lastBridgeIPFile, options: .atomic)
-        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: lastBridgeIPFile.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: lastBridgeIPFile.path)
     }
 
     static func loadLastBridgeIP() -> String? {
