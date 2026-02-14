@@ -1,6 +1,5 @@
 import Foundation
 
-@MainActor
 final class SSEParser {
     private var dataBuffer: [String] = []
 

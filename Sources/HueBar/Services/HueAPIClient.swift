@@ -384,64 +384,32 @@ final class HueAPIClient {
 
     // MARK: - Event Stream (SSE)
 
-    private var eventStreamTask: Task<Void, Never>?
+    private var eventStreamConnection: EventStreamConnection?
+    private var eventConsumingTask: Task<Void, Never>?
 
     func startEventStream() {
-        guard eventStreamTask == nil else { return }
-        eventStreamTask = Task { await runEventStream() }
+        guard eventConsumingTask == nil else { return }
+
+        let connection = eventStreamConnection ?? EventStreamConnection(
+            bridgeIP: bridgeIP,
+            applicationKey: applicationKey,
+            session: session
+        )
+        eventStreamConnection = connection
+
+        let stream = connection.start()
+        eventConsumingTask = Task {
+            for await events in stream {
+                applyEvents(events)
+            }
+        }
     }
 
     func stopEventStream() {
-        eventStreamTask?.cancel()
-        eventStreamTask = nil
-    }
-
-    private func runEventStream() async {
-        let parser = SSEParser()
-        var backoff: UInt64 = 1
-
-        while !Task.isCancelled {
-            parser.reset()
-
-            do {
-                var components = URLComponents()
-                components.scheme = "https"
-                components.host = bridgeIP
-                components.path = "/eventstream/clip/v2"
-                guard let url = components.url else { continue }
-
-                var request = URLRequest(url: url)
-                request.setValue(applicationKey, forHTTPHeaderField: "hue-application-key")
-                request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-
-                let (bytes, response) = try await session.bytes(for: request)
-                guard let httpResponse = response as? HTTPURLResponse,
-                      httpResponse.statusCode == 200 else { throw HueAPIError.invalidResponse }
-
-                backoff = 1
-
-                var lineBuffer = Data()
-                for try await byte in bytes {
-                    if byte == UInt8(ascii: "\n") {
-                        let line = String(data: lineBuffer, encoding: .utf8) ?? ""
-                        lineBuffer.removeAll(keepingCapacity: true)
-                        if let events = parser.processLine(line) {
-                            applyEvents(events)
-                        }
-                    } else {
-                        lineBuffer.append(byte)
-                    }
-                }
-            } catch is CancellationError {
-                break
-            } catch {
-                // Sleep with exponential backoff before retrying
-                do {
-                    try await Task.sleep(nanoseconds: backoff * 1_000_000_000)
-                } catch { break }
-                backoff = min(backoff * 2, 30)
-            }
-        }
+        eventStreamConnection?.stop()
+        eventConsumingTask?.cancel()
+        eventStreamConnection = nil
+        eventConsumingTask = nil
     }
 
     private func applyEvents(_ events: [HueEvent]) {
