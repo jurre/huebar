@@ -64,8 +64,10 @@ final class HotkeyManager {
     /// Maps Carbon EventHotKeyID.id → HotkeyBinding.id
     private(set) var hotKeyIDToBindingID: [UInt32: UUID] = [:]
 
+    @ObservationIgnored
     private nonisolated(unsafe) var registeredHotKeys: [EventHotKeyRef?] = []
     private var nextHotKeyID: UInt32 = 1
+    @ObservationIgnored
     private nonisolated(unsafe) var eventHandlerRef: EventHandlerRef?
 
     init() {
