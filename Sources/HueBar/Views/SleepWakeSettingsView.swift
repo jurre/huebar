@@ -2,27 +2,20 @@ import SwiftUI
 
 struct SleepWakeSettingsView: View {
     @Bindable var sleepWakeManager: SleepWakeManager
-    @Bindable var apiClient: HueAPIClient
+    var bridgeManager: BridgeManager
 
     @State private var isAdding = false
     @State private var selectedTargetId: String = ""
     @State private var selectedMode: SleepWakeMode = .both
     @State private var selectedSceneId: String = ""
 
-    private var availableTargets: [(id: String, name: String, type: HotkeyBinding.TargetType)] {
-        let existing = Set(sleepWakeManager.configs.map(\.targetId))
-        let rooms = apiClient.rooms
-            .filter { !existing.contains($0.id) }
-            .map { (id: $0.id, name: $0.name, type: HotkeyBinding.TargetType.room) }
-        let zones = apiClient.zones
-            .filter { !existing.contains($0.id) }
-            .map { (id: $0.id, name: $0.name, type: HotkeyBinding.TargetType.zone) }
-        return rooms + zones
-    }
-
     private var scenesForSelected: [HueScene] {
         guard !selectedTargetId.isEmpty else { return [] }
-        return apiClient.scenes(for: selectedTargetId)
+        for bridge in bridgeManager.bridges {
+            let scenes = bridge.client.scenes(for: selectedTargetId)
+            if !scenes.isEmpty { return scenes }
+        }
+        return []
     }
 
     private var canAdd: Bool {
@@ -70,8 +63,28 @@ struct SleepWakeSettingsView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Picker("Room / Zone", selection: $selectedTargetId) {
                         Text("Select…").tag("")
-                        ForEach(availableTargets, id: \.id) { target in
-                            Text(target.name).tag(target.id)
+                        ForEach(Array(bridgeManager.bridges.enumerated()), id: \.element.id) { _, bridge in
+                            let client = bridge.client
+                            let existing = Set(sleepWakeManager.configs.map(\.targetId))
+                            let rooms = client.rooms.filter { !existing.contains($0.id) }
+                            let zones = client.zones.filter { !existing.contains($0.id) }
+                            if bridgeManager.bridges.count > 1 {
+                                Section(bridge.name) {
+                                    ForEach(rooms) { room in
+                                        Text(room.name).tag(room.id)
+                                    }
+                                    ForEach(zones) { zone in
+                                        Text(zone.name).tag(zone.id)
+                                    }
+                                }
+                            } else {
+                                ForEach(rooms) { room in
+                                    Text(room.name).tag(room.id)
+                                }
+                                ForEach(zones) { zone in
+                                    Text(zone.name).tag(zone.id)
+                                }
+                            }
                         }
                     }
                     .controlSize(.small)
@@ -124,16 +137,27 @@ struct SleepWakeSettingsView: View {
     }
 
     private func addConfig() {
-        guard let target = availableTargets.first(where: { $0.id == selectedTargetId }) else { return }
+        // Find target across all bridges
+        var targetType: HotkeyBinding.TargetType?
+        var targetName: String?
+        for bridge in bridgeManager.bridges {
+            if let room = bridge.client.rooms.first(where: { $0.id == selectedTargetId }) {
+                targetType = .room; targetName = room.name; break
+            }
+            if let zone = bridge.client.zones.first(where: { $0.id == selectedTargetId }) {
+                targetType = .zone; targetName = zone.name; break
+            }
+        }
+        guard let type = targetType, let name = targetName else { return }
 
         let wakeSceneName: String? = selectedSceneId.isEmpty
             ? nil
             : scenesForSelected.first(where: { $0.id == selectedSceneId })?.name
 
         let config = SleepWakeConfig(
-            targetType: target.type,
-            targetId: target.id,
-            targetName: target.name,
+            targetType: type,
+            targetId: selectedTargetId,
+            targetName: name,
             mode: selectedMode,
             wakeSceneId: selectedSceneId.isEmpty ? nil : selectedSceneId,
             wakeSceneName: wakeSceneName

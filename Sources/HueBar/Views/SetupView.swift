@@ -3,8 +3,16 @@ import SwiftUI
 struct SetupView: View {
     @Bindable var discovery: HueBridgeDiscovery
     @Bindable var authService: HueAuthService
+    @Bindable var bridgeManager: BridgeManager
+    var onSetupComplete: () -> Void
 
     @State private var manualIP: String = ""
+    @State private var pairedBridgeIds: Set<String> = []
+
+    /// Bridges that haven't been paired yet in this session
+    private var unpairedBridges: [DiscoveredBridge] {
+        discovery.discoveredBridges.filter { !pairedBridgeIds.contains($0.id) }
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -14,6 +22,14 @@ struct SetupView: View {
             switch authService.authState {
             case .waitingForLinkButton:
                 linkButtonSection
+            case .authenticated:
+                if !unpairedBridges.isEmpty {
+                    pairedWithMoreAvailable
+                } else {
+                    // Only bridge (or last bridge) just paired — auto-complete
+                    ProgressView("Connecting…")
+                        .task { finishSetup() }
+                }
             case .error(let message):
                 errorSection(message: message)
             default:
@@ -32,7 +48,6 @@ struct SetupView: View {
         .padding()
         .frame(width: 300)
         .task {
-            // Auto-connect if we have a known bridge IP from a previous session
             if let knownIP = UserDefaults.standard.string(forKey: "huebar.bridgeIP") {
                 UserDefaults.standard.removeObject(forKey: "huebar.bridgeIP")
                 authService.authenticate(bridgeIP: knownIP)
@@ -40,6 +55,69 @@ struct SetupView: View {
                 discovery.addCachedBridge()
                 discovery.startDiscovery()
             }
+        }
+        .onChange(of: authService.authState) { _, newState in
+            if case .authenticated = newState, let creds = authService.lastPairedCredentials {
+                pairedBridgeIds.insert(creds.id)
+                bridgeManager.addBridge(credentials: creds)
+            }
+        }
+    }
+
+    // MARK: - Paired with more available
+
+    private var pairedWithMoreAvailable: some View {
+        VStack(spacing: 12) {
+            // Show paired bridges
+            ForEach(discovery.discoveredBridges.filter({ pairedBridgeIds.contains($0.id) })) { bridge in
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(bridge.name)
+                            .fontWeight(.medium)
+                        Text(bridge.ip)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(8)
+            }
+
+            if !unpairedBridges.isEmpty {
+                Text("More bridges available")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ForEach(unpairedBridges) { bridge in
+                    Button {
+                        authService.authenticate(bridge: bridge)
+                    } label: {
+                        HStack {
+                            Image(systemName: "lightbulb.led.wide")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(bridge.name)
+                                    .fontWeight(.medium)
+                                Text(bridge.ip)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button("Done") {
+                finishSetup()
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 
@@ -74,7 +152,7 @@ struct SetupView: View {
                 VStack(spacing: 4) {
                     ForEach(discovery.discoveredBridges) { bridge in
                         Button {
-                            authService.authenticate(bridgeIP: bridge.ip)
+                            authService.authenticate(bridge: bridge)
                         } label: {
                             HStack {
                                 Image(systemName: "lightbulb.led.wide")
@@ -126,7 +204,7 @@ struct SetupView: View {
                     Button("Connect") {
                         connectManual()
                     }
-                    .disabled(!IPValidation.isValid(manualIP))
+                    .disabled(!IPValidation.isValidWithPort(manualIP))
                 }
             }
         }
@@ -174,7 +252,11 @@ struct SetupView: View {
 
     private func connectManual() {
         let ip = manualIP.trimmingCharacters(in: .whitespaces)
-        guard IPValidation.isValid(ip) else { return }
-        authService.authenticate(bridgeIP: ip)
+        guard IPValidation.isValidWithPort(ip) else { return }
+        authService.authenticate(bridgeIP: ip, bridgeId: "manual-\(ip)", bridgeName: "Hue Bridge")
+    }
+
+    private func finishSetup() {
+        onSetupComplete()
     }
 }

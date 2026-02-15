@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ShortcutsSettingsView: View {
     @Bindable var hotkeyManager: HotkeyManager
-    @Bindable var apiClient: HueAPIClient
+    var bridgeManager: BridgeManager
 
     @State private var isAdding = false
     @State private var selectedTargetId: String = ""
@@ -11,9 +11,17 @@ struct ShortcutsSettingsView: View {
     @State private var conflictWarning: String?
 
     private var targets: [(id: String, name: String, type: HotkeyBinding.TargetType)] {
-        let rooms = apiClient.rooms.map { (id: $0.id, name: $0.name, type: HotkeyBinding.TargetType.room) }
-        let zones = apiClient.zones.map { (id: $0.id, name: $0.name, type: HotkeyBinding.TargetType.zone) }
-        return rooms + zones
+        var result: [(id: String, name: String, type: HotkeyBinding.TargetType)] = []
+        for bridge in bridgeManager.bridges {
+            let client = bridge.client
+            result += client.rooms.map { (id: $0.id, name: $0.name, type: HotkeyBinding.TargetType.room) }
+            result += client.zones.map { (id: $0.id, name: $0.name, type: HotkeyBinding.TargetType.zone) }
+        }
+        return result
+    }
+
+    private var hasMultipleBridges: Bool {
+        bridgeManager.bridges.count > 1
     }
 
     var body: some View {
@@ -47,11 +55,25 @@ struct ShortcutsSettingsView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Picker("Room / Zone", selection: $selectedTargetId) {
                         Text("Select…").tag("")
-                        ForEach(apiClient.rooms) { room in
-                            Text(room.name).tag(room.id)
-                        }
-                        ForEach(apiClient.zones) { zone in
-                            Text(zone.name).tag(zone.id)
+                        ForEach(Array(bridgeManager.bridges.enumerated()), id: \.element.id) { _, bridge in
+                            let client = bridge.client
+                            if hasMultipleBridges {
+                                Section(bridge.name) {
+                                    ForEach(client.rooms) { room in
+                                        Text(room.name).tag(room.id)
+                                    }
+                                    ForEach(client.zones) { zone in
+                                        Text(zone.name).tag(zone.id)
+                                    }
+                                }
+                            } else {
+                                ForEach(client.rooms) { room in
+                                    Text(room.name).tag(room.id)
+                                }
+                                ForEach(client.zones) { zone in
+                                    Text(zone.name).tag(zone.id)
+                                }
+                            }
                         }
                     }
                     .controlSize(.small)

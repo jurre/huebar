@@ -54,6 +54,7 @@ enum CredentialStore {
         var applicationKey: String
     }
 
+    @available(*, deprecated, message: "Use BridgeCredentials")
     static func save(credentials: Credentials) throws {
         try ensureStorageDirectory()
         let data = try JSONEncoder().encode(credentials)
@@ -61,6 +62,7 @@ enum CredentialStore {
         try? saveLastBridgeIP(credentials.bridgeIP)
     }
 
+    @available(*, deprecated, message: "Use BridgeCredentials")
     static func load() -> Credentials? {
         guard let data = try? Data(contentsOf: credentialsFile) else { return nil }
         return try? JSONDecoder().decode(Credentials.self, from: data)
@@ -68,10 +70,69 @@ enum CredentialStore {
 
     static func delete() {
         try? FileManager.default.removeItem(at: credentialsFile)
+        try? FileManager.default.removeItem(at: bridgesFile)
         // Clean up legacy cert_hash file from TOFU era
         try? FileManager.default.removeItem(
             at: storageDirectory.appendingPathComponent("cert_hash")
         )
+    }
+
+    // MARK: - Multi-bridge storage
+
+    private static var bridgesFile: URL {
+        storageDirectory.appendingPathComponent("bridges.json")
+    }
+
+    /// Adds or updates a bridge in the stored array (matched by `id`).
+    static func saveBridge(_ bridge: BridgeCredentials) throws {
+        try ensureStorageDirectory()
+        var bridges = loadBridgesFromDisk()
+        if let index = bridges.firstIndex(where: { $0.id == bridge.id }) {
+            bridges[index] = bridge
+        } else {
+            bridges.append(bridge)
+        }
+        let data = try JSONEncoder().encode(bridges)
+        try writeRestricted(data, to: bridgesFile)
+        try? saveLastBridgeIP(bridge.bridgeIP)
+    }
+
+    /// Removes a bridge by ID from the stored array.
+    static func removeBridge(id: String) throws {
+        try ensureStorageDirectory()
+        var bridges = loadBridgesFromDisk()
+        bridges.removeAll { $0.id == id }
+        let data = try JSONEncoder().encode(bridges)
+        try writeRestricted(data, to: bridgesFile)
+    }
+
+    /// Loads all bridges. Migrates from legacy `credentials.json` on first call if needed.
+    static func loadBridges() -> [BridgeCredentials] {
+        if FileManager.default.fileExists(atPath: bridgesFile.path) {
+            return loadBridgesFromDisk()
+        }
+
+        // Migrate legacy single-credential file
+        if let data = try? Data(contentsOf: credentialsFile),
+           let old = try? JSONDecoder().decode(Credentials.self, from: data) {
+            let migrated = BridgeCredentials(
+                id: "migrated-\(old.bridgeIP)",
+                bridgeIP: old.bridgeIP,
+                applicationKey: old.applicationKey,
+                name: "Hue Bridge"
+            )
+            if (try? saveBridge(migrated)) != nil {
+                try? FileManager.default.removeItem(at: credentialsFile)
+            }
+            return [migrated]
+        }
+
+        return []
+    }
+
+    private static func loadBridgesFromDisk() -> [BridgeCredentials] {
+        guard let data = try? Data(contentsOf: bridgesFile) else { return [] }
+        return (try? JSONDecoder().decode([BridgeCredentials].self, from: data)) ?? []
     }
 
     /// Save bridge IP independently so it survives credential deletion.
