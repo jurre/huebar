@@ -95,6 +95,7 @@ final class RoomOrderManager {
               fromIndex != toIndex else { return }
         let item = groups.remove(at: fromIndex)
         groups.insert(item, at: toIndex)
+        // Persist the new order to UserDefaults
         defaults.set(groups.map(\.id), forKey: orderKey)
     }
 

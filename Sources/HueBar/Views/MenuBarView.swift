@@ -11,7 +11,8 @@ struct MenuBarView: View {
     @State private var selectedClient: HueAPIClient?
     @State private var showSettings = false
     
-    // Drag-and-drop state
+    // Drag-and-drop state: track which room/zone is being targeted for drop
+    // IDs are scoped per item type (rooms vs zones) but unique across bridges (UUIDs from Hue API)
     @State private var roomDragTarget: String?
     @State private var zoneDragTarget: String?
     
