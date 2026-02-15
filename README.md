@@ -20,19 +20,20 @@ Philips discontinued the official Hue macOS app years ago, and most third-party 
 - 🎨 **Scene Selection** — Browse and activate saved scenes in a color-coded grid
 - 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles and brightness
 - 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights
-- 📌 **Pin & Reorder** — Pin favorite rooms/zones to the top and reorder them with drag-and-drop
+- 🌉 **Multi-Bridge Support** — Connect multiple Hue Bridges and control all your lights from one place
+- 📌 **Pin to Top** — Pin favorite rooms/zones to the top of the list
 - ⌨️ **Global Keyboard Shortcuts** — Assign system-wide hotkeys to toggle any room or zone on/off, even when HueBar isn't focused
 - 😴 **Sleep/Wake Automation** — Automatically turn rooms off when your Mac sleeps and back on when it wakes, with optional scene recall
 - 🔄 **Real-time Updates** — Live state updates via Server-Sent Events (SSE) from the Hue Bridge
 - 🚀 **Launch at Login** — Optional auto-start on login, configurable from the menu
-- 🔍 **Auto-discovery** — Finds your Hue Bridge automatically via mDNS and cloud discovery with retry
+- 🔍 **Auto-discovery** — Finds your Hue Bridges automatically via mDNS and cloud discovery with retry
 - 🔒 **Secure** — TLS with Signify root CA pinning, IP validation, credentials stored locally with restricted permissions
 - 🪶 **Lightweight** — Native SwiftUI, no external dependencies, lives in your menu bar
 
 ## Requirements
 
 - macOS 15.0 (Sequoia) or later
-- A Philips Hue Bridge on your local network
+- One or more Philips Hue Bridges on your local network
 
 ## Installation
 
@@ -66,6 +67,14 @@ swift run
 2. The app will search for your Hue Bridge on the network
 3. When your bridge is found, click it and press the **link button** on your physical Hue Bridge
 4. That's it — your rooms and zones appear with toggle switches, brightness sliders, scene selection, and individual light controls
+
+### Multiple Bridges
+
+If you have more than one Hue Bridge:
+
+1. During initial setup, after pairing your first bridge, any additional discovered bridges are shown — click to pair them too
+2. To add a bridge later, open **Settings** → **Add Bridge**
+3. Each bridge appears as a separate section in the room list
 
 ## Keyboard Shortcuts
 
@@ -112,6 +121,7 @@ Sources/HueBar/
 │   ├── ColorWheelView.swift       # CIE xy color wheel picker
 │   ├── ColorTemperatureSlider.swift # Mirek color temperature slider
 │   ├── SetupView.swift            # Bridge discovery & link-button auth flow
+│   ├── AddBridgeView.swift        # Add additional bridges from settings
 │   ├── SettingsView.swift         # Settings (push-navigation in popover)
 │   ├── ShortcutsSettingsView.swift # Keyboard shortcut management
 │   ├── SleepWakeSettingsView.swift # Sleep/wake automation management
@@ -126,16 +136,19 @@ Sources/HueBar/
 │   ├── HueResponse.swift          # Generic API response envelope
 │   ├── ResourceLink.swift         # API resource reference
 │   ├── SharedTypes.swift          # Shared type definitions
+│   ├── BridgeCredentials.swift    # Bridge connection credentials (id, IP, key, name)
 │   ├── HotkeyBinding.swift        # Keyboard shortcut model
 │   └── SleepWakeConfig.swift      # Sleep/wake automation config
 ├── Services/
 │   ├── HueBridgeDiscovery.swift   # mDNS + cloud bridge discovery with retry
 │   ├── HueAPIClient.swift         # CLIP v2 API client with SSE streaming
 │   ├── HueAuthService.swift       # Link-button authentication
+│   ├── BridgeManager.swift        # Multi-bridge coordinator
+│   ├── BridgeConnection.swift     # Per-bridge connection lifecycle
 │   ├── EventStreamUpdater.swift   # Real-time state update handler
 │   ├── SSEParser.swift            # Server-Sent Events parser
 │   ├── RoomOrderManager.swift     # Room/zone pinning & ordering persistence
-│   ├── CredentialStore.swift      # Credential + bridge IP storage
+│   ├── CredentialStore.swift      # Credential + bridge storage
 │   ├── HotkeyManager.swift        # Global keyboard shortcut registration
 │   └── SleepWakeManager.swift     # Sleep/wake notification observer
 └── Utilities/
@@ -144,11 +157,16 @@ Sources/HueBar/
     ├── HueBridgeRootCA.swift       # Bundled Signify/Philips Hue root CA certs
     ├── TrustDelegate.swift        # TLS validation via Signify root CA pinning
     └── IPValidation.swift         # Bridge IP address validation
+
+Sources/HueMockBridge/             # Mock bridge server for UI development
+├── HueMockBridgeMain.swift        # CLI entry point (--port, --name, --rooms)
+├── MockBridge.swift               # In-memory bridge state & API handler
+└── MockHTTPServer.swift           # Lightweight HTTP server (Network framework)
 ```
 
 ## Security
 
-Credentials (bridge IP and application key) are stored in `~/Library/Application Support/HueBar/credentials.json` with owner-only file permissions (`0600`) in an owner-only directory (`0700`).
+Credentials (bridge IPs and application keys) are stored in `~/Library/Application Support/HueBar/bridges.json` with owner-only file permissions (`0600`) in an owner-only directory (`0700`). Legacy single-bridge credentials are automatically migrated.
 
 We use a file rather than the macOS Keychain because the Keychain prompts for access on every launch with unsigned/ad-hoc signed builds — which is the default when building from source with `swift build`. The Hue application key is a local network token that only works to communicate with your specific bridge on your LAN; it is not a cloud credential or password.
 

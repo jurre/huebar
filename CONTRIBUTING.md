@@ -11,6 +11,20 @@ Thanks for your interest in contributing! HueBar is a small project and contribu
 
 Requires macOS 15 (Sequoia) and Xcode 16+.
 
+## Development with Mock Bridges
+
+You don't need a real Hue Bridge to work on the UI. HueBar includes a mock bridge server:
+
+```bash
+# Start two mock bridges (Upstairs on :8080, Downstairs on :8081)
+./scripts/mock-bridges.sh
+
+# Or run a single bridge with custom config
+swift run HueMockBridge --port 8080 --name "Test" --rooms "Kitchen:kitchen:3,Office:office:2"
+```
+
+In HueBar, enter `127.0.0.1:8080` as a manual IP to connect to a mock bridge. The mock server logs all incoming requests to stdout.
+
 ## Making Changes
 
 - Create a branch from `main`

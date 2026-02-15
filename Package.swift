@@ -16,6 +16,10 @@ let package = Package(
             path: "Sources/HueBar",
             exclude: ["Info.plist"]
         ),
+        .executableTarget(
+            name: "HueMockBridge",
+            path: "Sources/HueMockBridge"
+        ),
         .testTarget(
             name: "HueBarTests",
             dependencies: [
