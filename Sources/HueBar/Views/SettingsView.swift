@@ -13,11 +13,6 @@ struct SettingsView: View {
     @State private var editingBridgeName: String = ""
     @State private var showAddBridge = false
 
-    /// Primary client for shortcuts/sleep-wake settings
-    private var primaryClient: HueAPIClient? {
-        bridgeManager.bridges.first?.client
-    }
-
     var body: some View {
         if showAddBridge {
             AddBridgeView(bridgeManager: bridgeManager) {
@@ -96,18 +91,16 @@ struct SettingsView: View {
                     .padding(.horizontal)
 
                     // Shortcuts section
-                    if let client = primaryClient {
-                        SectionHeaderView(title: "SHORTCUTS")
+                    SectionHeaderView(title: "SHORTCUTS")
 
-                        ShortcutsSettingsView(hotkeyManager: hotkeyManager, apiClient: client)
-                            .padding(.horizontal)
+                    ShortcutsSettingsView(hotkeyManager: hotkeyManager, bridgeManager: bridgeManager)
+                        .padding(.horizontal)
 
-                        // Sleep / Wake section
-                        SectionHeaderView(title: "SLEEP / WAKE")
+                    // Sleep / Wake section
+                    SectionHeaderView(title: "SLEEP / WAKE")
 
-                        SleepWakeSettingsView(sleepWakeManager: sleepWakeManager, apiClient: client)
-                            .padding(.horizontal)
-                    }
+                    SleepWakeSettingsView(sleepWakeManager: sleepWakeManager, bridgeManager: bridgeManager)
+                        .padding(.horizontal)
 
                     Divider()
                         .padding(.top, 4)
