@@ -17,6 +17,10 @@ struct HueBarApp: App {
         // Connect immediately so the menu bar icon reflects light state
         if !credentials.isEmpty {
             let manager = _bridgeManager.wrappedValue
+            let hotkeys = _hotkeyManager.wrappedValue
+            let sleepWake = _sleepWakeManager.wrappedValue
+            configureHotkeyHandler(hotkeyManager: hotkeys, bridgeManager: manager)
+            configureSleepWake(sleepWakeManager: sleepWake, bridgeManager: manager)
             Task { await manager.connectAll() }
         }
     }
@@ -61,8 +65,8 @@ struct HueBarApp: App {
 
     private func completeSetup() {
         authService.authState = .authenticated(applicationKey: "stored")
-        configureHotkeyHandler()
-        configureSleepWake()
+        configureHotkeyHandler(hotkeyManager: hotkeyManager, bridgeManager: bridgeManager)
+        configureSleepWake(sleepWakeManager: sleepWakeManager, bridgeManager: bridgeManager)
         Task { await bridgeManager.connectAll() }
     }
 
@@ -74,7 +78,7 @@ struct HueBarApp: App {
         hotkeyManager.onHotkeyTriggered = nil
     }
 
-    private func configureHotkeyHandler() {
+    private func configureHotkeyHandler(hotkeyManager: HotkeyManager, bridgeManager: BridgeManager) {
         hotkeyManager.onHotkeyTriggered = { binding in
             for bridge in bridgeManager.bridges {
                 let client = bridge.client
@@ -92,8 +96,7 @@ struct HueBarApp: App {
         }
     }
 
-    private func configureSleepWake() {
-        // For now, configure with the first bridge's client
+    private func configureSleepWake(sleepWakeManager: SleepWakeManager, bridgeManager: BridgeManager) {
         if let primary = bridgeManager.bridges.first {
             sleepWakeManager.configure(apiClient: primary.client)
         }

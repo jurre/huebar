@@ -8,8 +8,6 @@ struct SetupView: View {
 
     @State private var manualIP: String = ""
     @State private var pairedBridgeIds: Set<String> = []
-    /// The discovered bridge currently being paired
-    @State private var pairingBridge: DiscoveredBridge?
 
     /// Bridges that haven't been paired yet in this session
     private var unpairedBridges: [DiscoveredBridge] {
@@ -94,7 +92,6 @@ struct SetupView: View {
 
                 ForEach(unpairedBridges) { bridge in
                     Button {
-                        pairingBridge = bridge
                         authService.authenticate(bridge: bridge)
                     } label: {
                         HStack {
@@ -155,7 +152,6 @@ struct SetupView: View {
                 VStack(spacing: 4) {
                     ForEach(discovery.discoveredBridges) { bridge in
                         Button {
-                            pairingBridge = bridge
                             authService.authenticate(bridge: bridge)
                         } label: {
                             HStack {

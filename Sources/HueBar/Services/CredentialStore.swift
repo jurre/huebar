@@ -94,6 +94,7 @@ enum CredentialStore {
         }
         let data = try JSONEncoder().encode(bridges)
         try writeRestricted(data, to: bridgesFile)
+        try? saveLastBridgeIP(bridge.bridgeIP)
     }
 
     /// Removes a bridge by ID from the stored array.

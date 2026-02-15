@@ -41,9 +41,8 @@ final class HueAuthService {
         self.bridgeIP = bridgeIP
         authState = .waitingForLinkButton
 
-        let hostPart = String(bridgeIP.split(separator: ":").first ?? Substring(bridgeIP))
-        let portPart = bridgeIP.split(separator: ":").count == 2 ? Int(bridgeIP.split(separator: ":")[1]) : nil
-        let isLocal = hostPart == "127.0.0.1" || hostPart == "localhost"
+        let parsed = IPValidation.parseHostPort(bridgeIP)
+        let isLocal = parsed.host == "127.0.0.1" || parsed.host == "localhost"
 
         pollingTask = Task {
             let session: URLSession
@@ -52,7 +51,7 @@ final class HueAuthService {
             } else {
                 session = URLSession(
                     configuration: .ephemeral,
-                    delegate: HueBridgeTrustDelegate(bridgeIP: hostPart),
+                    delegate: HueBridgeTrustDelegate(bridgeIP: parsed.host),
                     delegateQueue: nil
                 )
             }
@@ -60,8 +59,8 @@ final class HueAuthService {
 
             var components = URLComponents()
             components.scheme = isLocal ? "http" : "https"
-            components.host = hostPart
-            components.port = portPart
+            components.host = parsed.host
+            components.port = parsed.port
             components.path = "/api"
             guard let url = components.url else {
                 authState = .error("Invalid bridge IP")

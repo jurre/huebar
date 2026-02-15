@@ -192,7 +192,7 @@ final class MockBridge: @unchecked Sendable {
             // Create grouped light
             let anyOn = roomLightIds.contains { lightStates[$0]?.on ?? false }
             let avgBrightness = roomLightIds.compactMap { lightStates[$0]?.brightness }.reduce(0, +) / Double(max(roomLightIds.count, 1))
-            let firstMirek = lightStates[roomLightIds[0]]?.mirek ?? 250
+            let firstMirek = roomLightIds.first.flatMap { lightStates[$0]?.mirek } ?? 250
 
             let groupedLight: [String: Any] = [
                 "id": groupedLightId,

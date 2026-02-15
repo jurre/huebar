@@ -36,35 +36,35 @@ final class HueAPIClient {
     let applicationKey: String
     private let session: URLSession
 
+    /// Parsed host (without port), cached from bridgeIP
+    private let parsedHost: String
+    /// Parsed port (if specified), cached from bridgeIP
+    private let parsedPort: Int?
+
     /// Whether this client connects to a local mock bridge (uses HTTP instead of HTTPS)
     private var isLocalMock: Bool {
-        let host = bridgeIP.split(separator: ":").first.map(String.init) ?? bridgeIP
-        return host == "127.0.0.1" || host == "localhost"
+        parsedHost == "127.0.0.1" || parsedHost == "localhost"
     }
 
     /// The scheme to use for API requests
     private var scheme: String { isLocalMock ? "http" : "https" }
 
     /// The host component (without port)
-    private var host: String {
-        String(bridgeIP.split(separator: ":").first ?? Substring(bridgeIP))
-    }
+    private var host: String { parsedHost }
 
     /// The port component (if specified)
-    private var port: Int? {
-        let parts = bridgeIP.split(separator: ":")
-        return parts.count == 2 ? Int(parts[1]) : nil
-    }
+    private var port: Int? { parsedPort }
 
     init(bridgeIP: String, applicationKey: String) throws {
-        // Allow host:port format for mock bridges (e.g. "127.0.0.1:8080")
-        let hostPart = String(bridgeIP.split(separator: ":").first ?? Substring(bridgeIP))
-        let isLocal = hostPart == "127.0.0.1" || hostPart == "localhost"
-        guard IPValidation.isValid(hostPart) || isLocal else {
+        let parsed = IPValidation.parseHostPort(bridgeIP)
+        let isLocal = parsed.host == "127.0.0.1" || parsed.host == "localhost"
+        guard IPValidation.isValid(parsed.host) || isLocal else {
             throw HueAPIError.invalidBridgeIP
         }
         self.bridgeIP = bridgeIP
         self.applicationKey = applicationKey
+        self.parsedHost = parsed.host
+        self.parsedPort = parsed.port
         let config = URLSessionConfiguration.default
         if isLocal {
             // No TLS delegate needed for local mock bridges
@@ -72,7 +72,7 @@ final class HueAPIClient {
         } else {
             self.session = URLSession(
                 configuration: config,
-                delegate: HueBridgeTrustDelegate(bridgeIP: hostPart),
+                delegate: HueBridgeTrustDelegate(bridgeIP: parsed.host),
                 delegateQueue: nil
             )
         }
@@ -80,8 +80,11 @@ final class HueAPIClient {
 
     // Internal init for testing with a custom URLSession
     init(bridgeIP: String, applicationKey: String, session: URLSession) {
+        let parsed = IPValidation.parseHostPort(bridgeIP)
         self.bridgeIP = bridgeIP
         self.applicationKey = applicationKey
+        self.parsedHost = parsed.host
+        self.parsedPort = parsed.port
         self.session = session
     }
 

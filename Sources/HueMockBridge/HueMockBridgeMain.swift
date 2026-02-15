@@ -19,7 +19,14 @@ struct HueMockBridgeMain {
             switch args[i] {
             case "--port", "-p":
                 i += 1
-                if i < args.count, let p = UInt16(args[i]) { port = p }
+                if i < args.count, let p = UInt16(args[i]), p > 0 {
+                    port = p
+                } else {
+                    let value = (i < args.count) ? args[i] : "<missing>"
+                    fputs("Error: invalid port '\(value)'. Port must be a positive integer.\n\n", stderr)
+                    printUsage()
+                    exit(1)
+                }
             case "--name", "-n":
                 i += 1
                 if i < args.count { name = args[i] }

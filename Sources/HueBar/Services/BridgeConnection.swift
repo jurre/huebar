@@ -22,7 +22,7 @@ final class BridgeConnection: Identifiable {
 
     /// Connect to the bridge: fetch all data and start event stream
     func connect() async {
-        guard status != .connected else { return }
+        guard status != .connected, status != .connecting else { return }
         status = .connecting
         await client.fetchAll()
         if let error = client.lastError {
