@@ -223,6 +223,10 @@ struct EventStreamConnectionMockTests {
 
     @Test("Only one connection is created when start() is called multiple times")
     func startCreatesOneConnection() async {
+        // Brief yield to drain any in-flight URLProtocol requests from prior tests,
+        // since task cancellation is cooperative and requests may still be pending.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
         // Use a failing response so the connection enters backoff (1s) after the first request.
         // If start() created duplicate connections, we'd see requestCount > 1 before backoff expires.
         MockSSEProtocol.responses = [
