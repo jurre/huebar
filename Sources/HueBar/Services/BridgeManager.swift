@@ -7,7 +7,7 @@ final class BridgeManager {
 
     /// Whether any bridge is currently loading
     var isLoading: Bool {
-        bridges.contains { $0.status == .connecting }
+        bridges.contains { $0.status == .disconnected || $0.status == .connecting }
     }
 
     /// Load credentials and connect to all stored bridges

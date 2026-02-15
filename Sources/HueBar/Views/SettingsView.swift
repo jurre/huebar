@@ -180,7 +180,7 @@ struct SettingsView: View {
             switch status {
             case .connected:
                 Circle().fill(.green).frame(width: 8, height: 8)
-            case .connecting:
+            case .disconnected, .connecting:
                 ProgressView().controlSize(.mini)
             case .error:
                 Circle().fill(.red).frame(width: 8, height: 8)

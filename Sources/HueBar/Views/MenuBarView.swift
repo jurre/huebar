@@ -116,7 +116,7 @@ struct MenuBarView: View {
                 .padding(.top, 8)
 
             switch bridge.status {
-            case .connecting:
+            case .disconnected, .connecting:
                 ProgressView()
                     .padding(.horizontal)
             case .error(let message):
