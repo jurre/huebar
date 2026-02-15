@@ -373,8 +373,12 @@ final class HueAPIClient {
         }
         let previousSceneId = activeSceneId
         let previousIsDynamic = activeSceneIsDynamic
+        let previousStatus = scenes.first(where: { $0.id == id })?.status
         activeSceneId = id
         activeSceneIsDynamic = dynamic
+        // Optimistically update scene status so isActiveSceneDynamic reflects the change immediately
+        let optimisticStatus = HueSceneStatus(active: dynamic ? .dynamicPalette : .active)
+        updateSceneStatus(id: id, status: optimisticStatus)
         let action = dynamic ? "dynamic_palette" : "active"
         let body = try JSONEncoder().encode(["recall": ["action": action]])
         let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
@@ -384,6 +388,7 @@ final class HueAPIClient {
             // Rollback optimistic update
             activeSceneId = previousSceneId
             activeSceneIsDynamic = previousIsDynamic
+            updateSceneStatus(id: id, status: previousStatus)
             throw HueAPIError.invalidResponse
         }
         // Refresh grouped lights to reflect scene's brightness/on state
@@ -439,7 +444,7 @@ final class HueAPIClient {
         )
     }
 
-    private func updateSceneStatus(id: String, status: HueSceneStatus) {
+    private func updateSceneStatus(id: String, status: HueSceneStatus?) {
         guard let index = scenes.firstIndex(where: { $0.id == id }) else { return }
         let scene = scenes[index]
         scenes[index] = HueScene(

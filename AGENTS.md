@@ -1,4 +1,4 @@
-# Copilot Instructions for HueBar
+# Instructions for HueBar
 
 ## Project Overview
 HueBar is a native macOS menubar app (SwiftUI, macOS 15+) for controlling Philips Hue lights via the Hue CLIP API v2. It uses `MenuBarExtra` with `.window` style for the popover UI.
@@ -22,6 +22,12 @@ HueBar is a native macOS menubar app (SwiftUI, macOS 15+) for controlling Philip
 - Instead, apply `.tint(.hueAccent)` only to specific controls that should be accented: light toggles and brightness sliders
 - `Color.hueAccent` is defined in `ColorConversion.swift`
 - Buttons and navigation text should use default (`.primary`) styling
+
+## Accessibility
+- **Every** interactive control (buttons, sliders, toggles) must have an `.accessibilityLabel()`
+- Sliders should also have a separate `.accessibilityValue()` so VoiceOver can announce dynamic values
+- Do not embed changing values in the label — use `.accessibilityValue()` instead
+- Custom controls (e.g. `ColorTemperatureSlider`) must manually add accessibility modifiers since they don't inherit them from native SwiftUI controls
 
 ## Hue API v2 (CLIP)
 - Base URL: `https://<bridge_ip>/clip/v2/resource/`
