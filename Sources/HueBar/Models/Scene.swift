@@ -12,9 +12,9 @@ struct HueScene: Decodable, Sendable, Identifiable {
     let type: String?
     let metadata: HueSceneMetadata
     let group: ResourceLink
-    let status: HueSceneStatus?
+    var status: HueSceneStatus?
     let palette: HueScenePalette?
-    let speed: Double?
+    var speed: Double?
     let autoDynamic: Bool?
 
     enum CodingKeys: String, CodingKey {
@@ -96,11 +96,6 @@ struct HueScenePaletteColor: Decodable, Sendable {
 
 struct HueColorValue: Decodable, Sendable {
     let xy: CIEXYColor
-}
-
-struct CIEXYColor: Codable, Sendable {
-    let x: Double
-    let y: Double
 }
 
 struct HueScenePaletteDimming: Decodable, Sendable {

@@ -54,9 +54,6 @@ struct MenuBarView: View {
         .frame(width: 300, height: 550)
         .clipped()
         .preferredColorScheme(.dark)
-        .task {
-            await bridgeManager.connectAll()
-        }
     }
 
     // MARK: - Room List
@@ -119,7 +116,7 @@ struct MenuBarView: View {
                 .padding(.top, 8)
 
             switch bridge.status {
-            case .connecting:
+            case .disconnected, .connecting:
                 ProgressView()
                     .padding(.horizontal)
             case .error(let message):

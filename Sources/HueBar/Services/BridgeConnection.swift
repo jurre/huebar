@@ -1,6 +1,7 @@
 import Foundation
 
 enum BridgeConnectionStatus: Sendable, Equatable {
+    case disconnected
     case connecting
     case connected
     case error(String)
@@ -12,7 +13,7 @@ final class BridgeConnection: Identifiable {
     let id: String
     var name: String
     let client: HueAPIClient
-    var status: BridgeConnectionStatus = .connecting
+    var status: BridgeConnectionStatus = .disconnected
 
     init(credentials: BridgeCredentials) throws {
         self.id = credentials.id

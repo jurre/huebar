@@ -22,6 +22,31 @@ HueBar supports multiple Hue Bridges. `BridgeManager` holds an array of `BridgeC
 - Optimistic UI updates for toggles (update local state before API call, revert on failure)
 - `Sendable` compliance throughout for Swift 6 strict concurrency
 
+### Error Handling
+- Never use `try?` silently — always wrap in `do/catch` and log errors with `os.Logger`
+- Use `Logger(subsystem: "com.huebar", category: "<ClassName>")` for each class
+- Exception: `try? await Task.sleep(...)` is fine since cancellation is expected, not an error
+- Users rely on automations (hotkeys, sleep/wake) working invisibly — if they fail silently, the user has no way to diagnose why
+
+### Concurrency Safety
+- When using `nonisolated(unsafe)`, always add a `// SAFETY:` comment explaining why it's safe
+- Document the threading model: which thread accesses the value and when
+- For C callback interop (e.g., Carbon hotkeys), explain that callbacks run on the main thread
+
+### Model Mutability
+- Use `var` for model properties that are updated optimistically (e.g., `on`, `dimming`, `color`, `colorTemperature`, `status`, `speed`)
+- Never reconstruct entire structs just to change one field — use direct property mutation: `lights[index].on = OnState(on: on)`
+- Keep `let` for identity/metadata fields that never change after creation (e.g., `id`, `owner`, `metadata`)
+
+### Type Safety
+- Use enums over raw strings for dispatch/selection patterns (e.g., `PinCategory` instead of string keys)
+- Avoid `default` branches in switch statements when all cases should be explicitly handled
+- Prefer `guard let` over force-unwraps (`!`) even when the value is known to be non-nil from context
+
+### Event Stream
+- Debounce bulk add/delete events before triggering `fetchAll()` — bursts of events should coalesce into a single refresh
+- Use `refreshDebounceTask` pattern: cancel previous, sleep briefly, check cancellation, then fetch
+
 ### Network addresses
 Bridge IPs can be IPv4, IPv6, or include a port (for mock bridges). **Never split on `":"` to parse host/port** — this breaks IPv6 addresses. Always use `IPValidation.parseHostPort()` which handles all formats (IPv4, IPv4:port, bare IPv6, `[IPv6]:port`).
 
@@ -39,6 +64,17 @@ Bridge IPs can be IPv4, IPv6, or include a port (for mock bridges). **Never spli
 - Sliders should also have a separate `.accessibilityValue()` so VoiceOver can announce dynamic values
 - Do not embed changing values in the label — use `.accessibilityValue()` instead
 - Custom controls (e.g. `ColorTemperatureSlider`) must manually add accessibility modifiers since they don't inherit them from native SwiftUI controls
+
+## UI Feedback Loops
+- SwiftUI `onChange` fires for BOTH user input AND programmatic updates — always guard against feedback loops
+- For sliders: use `onEditingChanged` to track `isUserDragging` state
+- Only send API requests when `isUserDragging == true`; only sync from API state when `isUserDragging == false`
+- Check all slider-like controls: brightness, speed, color temperature
+
+## Security Framework APIs
+- Always check return values of Security framework functions (`SecTrust*`, etc.)
+- Use fail-closed behavior: if a security API call fails, cancel/reject the operation
+- Match existing patterns in `TrustDelegate.swift` — `guard status == errSecSuccess else { return (.cancelAuthenticationChallenge, nil) }`
 
 ## Hue API v2 (CLIP)
 - Base URL: `https://<bridge_ip>/clip/v2/resource/`

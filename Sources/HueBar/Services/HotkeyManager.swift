@@ -42,6 +42,8 @@ private func carbonHotkeyHandler(
 @Observable
 @MainActor
 final class HotkeyManager {
+    // SAFETY: Set once during app init on the main thread, then only read from the
+    // Carbon event C callback which also runs on the main thread.
     nonisolated(unsafe) static var shared: HotkeyManager?
 
     private static let userDefaultsKey = "hotkeyBindings"
@@ -64,9 +66,13 @@ final class HotkeyManager {
     /// Maps Carbon EventHotKeyID.id → HotkeyBinding.id
     private(set) var hotKeyIDToBindingID: [UInt32: UUID] = [:]
 
+    // SAFETY: Only accessed from @MainActor methods and the Carbon C callback
+    // (which runs on the main thread), so there is no concurrent mutation.
     @ObservationIgnored
     private nonisolated(unsafe) var registeredHotKeys: [EventHotKeyRef?] = []
     private var nextHotKeyID: UInt32 = 1
+    // SAFETY: Only accessed from @MainActor methods and the Carbon C callback
+    // (which runs on the main thread), so there is no concurrent mutation.
     @ObservationIgnored
     private nonisolated(unsafe) var eventHandlerRef: EventHandlerRef?
 

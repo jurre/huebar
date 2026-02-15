@@ -5,10 +5,10 @@ struct HueLight: Decodable, Sendable, Identifiable {
     let id: String
     let owner: ResourceLink
     let metadata: LightMetadata
-    let on: OnState
-    let dimming: DimmingState?
-    let color: LightColor?
-    let colorTemperature: LightColorTemperature?
+    var on: OnState
+    var dimming: DimmingState?
+    var color: LightColor?
+    var colorTemperature: LightColorTemperature?
 
     enum CodingKeys: String, CodingKey {
         case id, owner, metadata, on, dimming, color
