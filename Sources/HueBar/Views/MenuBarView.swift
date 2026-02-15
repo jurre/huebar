@@ -10,6 +10,10 @@ struct MenuBarView: View {
     @State private var selectedZone: Zone?
     @State private var selectedClient: HueAPIClient?
     @State private var showSettings = false
+    
+    // Drag-and-drop state
+    @State private var roomDragTarget: String?
+    @State private var zoneDragTarget: String?
 
     /// The primary bridge client (first connected bridge)
     private var primaryClient: HueAPIClient? {
@@ -134,6 +138,15 @@ struct MenuBarView: View {
                                 selectedRoom = room
                             }
                         }
+                        .background(roomDragTarget == room.id ? Color.blue.opacity(0.2) : Color.clear)
+                        .draggable(room)
+                        .dropDestination(for: Room.self) { droppedRooms, _ in
+                            guard let draggedRoom = droppedRooms.first else { return false }
+                            bridge.client.moveRoom(fromId: draggedRoom.id, toId: room.id)
+                            return true
+                        } isTargeted: { isTargeted in
+                            roomDragTarget = isTargeted ? room.id : nil
+                        }
                         .contextMenu {
                             Button(bridge.client.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
                                 withAnimation { bridge.client.toggleRoomPin(room.id) }
@@ -150,6 +163,15 @@ struct MenuBarView: View {
                                 selectedClient = bridge.client
                                 selectedZone = zone
                             }
+                        }
+                        .background(zoneDragTarget == zone.id ? Color.blue.opacity(0.2) : Color.clear)
+                        .draggable(zone)
+                        .dropDestination(for: Zone.self) { droppedZones, _ in
+                            guard let draggedZone = droppedZones.first else { return false }
+                            bridge.client.moveZone(fromId: draggedZone.id, toId: zone.id)
+                            return true
+                        } isTargeted: { isTargeted in
+                            zoneDragTarget = isTargeted ? zone.id : nil
                         }
                         .contextMenu {
                             Button(bridge.client.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {
@@ -188,6 +210,15 @@ struct MenuBarView: View {
                             LightRowView(apiClient: client, name: room.name, archetype: room.metadata.archetype, groupedLightId: room.groupedLightId, groupId: room.id, isPinned: client.isRoomPinned(room.id)) {
                                 withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = room }
                             }
+                            .background(roomDragTarget == room.id ? Color.blue.opacity(0.2) : Color.clear)
+                            .draggable(room)
+                            .dropDestination(for: Room.self) { droppedRooms, _ in
+                                guard let draggedRoom = droppedRooms.first else { return false }
+                                client.moveRoom(fromId: draggedRoom.id, toId: room.id)
+                                return true
+                            } isTargeted: { isTargeted in
+                                roomDragTarget = isTargeted ? room.id : nil
+                            }
                             .contextMenu {
                                 Button(client.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
                                     withAnimation { client.toggleRoomPin(room.id) }
@@ -202,6 +233,15 @@ struct MenuBarView: View {
                             ForEach(client.zones) { zone in
                                 LightRowView(apiClient: client, name: zone.name, archetype: zone.metadata.archetype, groupedLightId: zone.groupedLightId, groupId: zone.id, isPinned: client.isZonePinned(zone.id)) {
                                     withAnimation(.easeInOut(duration: 0.25)) { selectedZone = zone }
+                                }
+                                .background(zoneDragTarget == zone.id ? Color.blue.opacity(0.2) : Color.clear)
+                                .draggable(zone)
+                                .dropDestination(for: Zone.self) { droppedZones, _ in
+                                    guard let draggedZone = droppedZones.first else { return false }
+                                    client.moveZone(fromId: draggedZone.id, toId: zone.id)
+                                    return true
+                                } isTargeted: { isTargeted in
+                                    zoneDragTarget = isTargeted ? zone.id : nil
                                 }
                                 .contextMenu {
                                     Button(client.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {

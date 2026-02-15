@@ -52,11 +52,40 @@ final class RoomOrderManager {
 
     func sort<T: LightGroup>(_ groups: inout [T], category: PinCategory) {
         let pinned = pinnedIds(for: category)
+        let orderKey = category == .rooms ? Self.roomOrderKey : Self.zoneOrderKey
+        let customOrder = defaults.stringArray(forKey: orderKey) ?? []
+        
+        // Build a dictionary for O(1) lookup of custom positions
+        var orderIndex: [String: Int] = [:]
+        for (index, id) in customOrder.enumerated() {
+            orderIndex[id] = index
+        }
+        
         groups.sort {
             let aPinned = pinned.contains($0.id)
             let bPinned = pinned.contains($1.id)
+            
+            // Pinned items always come first
             if aPinned != bPinned { return aPinned }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            
+            // Among pinned or unpinned items, use custom order if available
+            let aIndex = orderIndex[$0.id]
+            let bIndex = orderIndex[$1.id]
+            
+            switch (aIndex, bIndex) {
+            case let (.some(a), .some(b)):
+                // Both have custom positions - use those
+                return a < b
+            case (.some, .none):
+                // Only A has custom position - A comes first
+                return true
+            case (.none, .some):
+                // Only B has custom position - B comes first
+                return false
+            case (.none, .none):
+                // Neither has custom position - fall back to alphabetical
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
         }
     }
 
