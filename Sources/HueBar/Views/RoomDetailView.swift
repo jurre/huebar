@@ -13,6 +13,8 @@ struct RoomDetailView: View {
     @State private var sliderBrightness: Double = 0
     @State private var sliderMirek: Int = 350
     @State private var sliderSpeed: Double = 0.5
+    @State private var isUserDraggingBrightness = false
+    @State private var isUserDraggingSpeed = false
     @State private var debounceTask: Task<Void, Never>?
     @State private var colorTempDebounceTask: Task<Void, Never>?
     @State private var speedDebounceTask: Task<Void, Never>?
@@ -100,7 +102,9 @@ struct RoomDetailView: View {
                         Image(systemName: "sun.min")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Slider(value: $sliderBrightness, in: 1...100)
+                        Slider(value: $sliderBrightness, in: 1...100) { editing in
+                            isUserDraggingBrightness = editing
+                        }
                             .controlSize(.small)
                             .tint(.hueAccent)
                             .accessibilityLabel("Brightness")
@@ -137,7 +141,9 @@ struct RoomDetailView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .frame(width: 12)
-                            Slider(value: $sliderSpeed, in: 0...1)
+                            Slider(value: $sliderSpeed, in: 0...1) { editing in
+                                isUserDraggingSpeed = editing
+                            }
                                 .controlSize(.small)
                                 .tint(.hueAccent)
                                 .accessibilityLabel("Scene speed")
@@ -220,7 +226,7 @@ struct RoomDetailView: View {
             sliderSpeed = activeSceneForGroup?.speed ?? 0.5
         }
         .onChange(of: groupedLight?.brightness) { _, newValue in
-            if let newValue {
+            if let newValue, !isUserDraggingBrightness {
                 sliderBrightness = max(newValue, 1)
             }
         }
@@ -230,18 +236,18 @@ struct RoomDetailView: View {
             }
         }
         .onChange(of: activeSceneForGroup?.speed) { _, newValue in
-            if let newValue {
+            if let newValue, !isUserDraggingSpeed {
                 sliderSpeed = newValue
             }
         }
         .onChange(of: sliderBrightness) { _, newValue in
-            guard let id = groupedLightId else { return }
+            guard isUserDraggingBrightness, let id = groupedLightId else { return }
             debounce(task: &debounceTask) {
                 try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
             }
         }
         .onChange(of: sliderSpeed) { _, newValue in
-            guard let sceneId = activeSceneForGroup?.id else { return }
+            guard isUserDraggingSpeed, let sceneId = activeSceneForGroup?.id else { return }
             debounce(task: &speedDebounceTask) {
                 try? await apiClient.setSceneSpeed(id: sceneId, speed: newValue)
             }

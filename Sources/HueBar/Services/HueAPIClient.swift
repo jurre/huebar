@@ -147,12 +147,7 @@ final class HueAPIClient {
         }
         // Optimistic update
         if let index = lights.firstIndex(where: { $0.id == id }) {
-            let light = lights[index]
-            lights[index] = HueLight(
-                id: id, owner: light.owner, metadata: light.metadata,
-                on: OnState(on: on), dimming: light.dimming,
-                color: light.color, colorTemperature: light.colorTemperature
-            )
+            lights[index].on = OnState(on: on)
         }
 
         let request = try makeRequest(
@@ -176,12 +171,7 @@ final class HueAPIClient {
         let clamped = min(max(brightness, 0.0), 100.0)
 
         if let index = lights.firstIndex(where: { $0.id == id }) {
-            let light = lights[index]
-            lights[index] = HueLight(
-                id: id, owner: light.owner, metadata: light.metadata,
-                on: light.on, dimming: DimmingState(brightness: clamped),
-                color: light.color, colorTemperature: light.colorTemperature
-            )
+            lights[index].dimming = DimmingState(brightness: clamped)
         }
 
         let request = try makeRequest(
@@ -205,12 +195,7 @@ final class HueAPIClient {
 
         // Optimistic update
         if let index = lights.firstIndex(where: { $0.id == id }) {
-            let light = lights[index]
-            lights[index] = HueLight(
-                id: id, owner: light.owner, metadata: light.metadata,
-                on: light.on, dimming: light.dimming,
-                color: LightColor(xy: xy), colorTemperature: light.colorTemperature
-            )
+            lights[index].color = LightColor(xy: xy)
         }
 
         let body = try JSONEncoder().encode(["color": ["xy": ["x": xy.x, "y": xy.y]]])
@@ -232,12 +217,7 @@ final class HueAPIClient {
 
         // Optimistic update
         if let index = lights.firstIndex(where: { $0.id == id }) {
-            let light = lights[index]
-            lights[index] = HueLight(
-                id: id, owner: light.owner, metadata: light.metadata,
-                on: light.on, dimming: light.dimming,
-                color: light.color, colorTemperature: LightColorTemperature(mirek: clampedMirek, mirekValid: true)
-            )
+            lights[index].colorTemperature = LightColorTemperature(mirek: clampedMirek, mirekValid: true)
         }
 
         let body = try JSONEncoder().encode(["color_temperature": ["mirek": clampedMirek]])
@@ -274,12 +254,7 @@ final class HueAPIClient {
         }
         // Optimistically update local state so the toggle reflects immediately
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
-            groupedLights[index] = GroupedLight(
-                id: id,
-                on: OnState(on: on),
-                dimming: groupedLights[index].dimming,
-                colorTemperature: groupedLights[index].colorTemperature
-            )
+            groupedLights[index].on = OnState(on: on)
         }
 
         let request = try makeRequest(
@@ -305,12 +280,7 @@ final class HueAPIClient {
 
         // Optimistic update
         if let index = groupedLights.firstIndex(where: { $0.id == groupedLightId }) {
-            groupedLights[index] = GroupedLight(
-                id: groupedLightId,
-                on: groupedLights[index].on,
-                dimming: DimmingState(brightness: clampedBrightness),
-                colorTemperature: groupedLights[index].colorTemperature
-            )
+            groupedLights[index].dimming = DimmingState(brightness: clampedBrightness)
         }
 
         let request = try makeRequest(
@@ -335,12 +305,7 @@ final class HueAPIClient {
         let clamped = min(max(mirek, 153), 500)
 
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
-            groupedLights[index] = GroupedLight(
-                id: id,
-                on: groupedLights[index].on,
-                dimming: groupedLights[index].dimming,
-                colorTemperature: LightColorTemperature(mirek: clamped, mirekValid: true)
-            )
+            groupedLights[index].colorTemperature = LightColorTemperature(mirek: clamped, mirekValid: true)
         }
 
         let body = try JSONEncoder().encode(["color_temperature": ["mirek": clamped]])
@@ -462,38 +427,19 @@ final class HueAPIClient {
 
     private func updateSceneSpeed(id: String, speed: Double) {
         guard let index = scenes.firstIndex(where: { $0.id == id }) else { return }
-        let scene = scenes[index]
-        scenes[index] = HueScene(
-            id: scene.id,
-            type: scene.type,
-            metadata: scene.metadata,
-            group: scene.group,
-            status: scene.status,
-            palette: scene.palette,
-            speed: speed,
-            autoDynamic: scene.autoDynamic
-        )
+        scenes[index].speed = speed
     }
 
     private func updateSceneStatus(id: String, status: HueSceneStatus?) {
         guard let index = scenes.firstIndex(where: { $0.id == id }) else { return }
-        let scene = scenes[index]
-        scenes[index] = HueScene(
-            id: scene.id,
-            type: scene.type,
-            metadata: scene.metadata,
-            group: scene.group,
-            status: status,
-            palette: scene.palette,
-            speed: scene.speed,
-            autoDynamic: scene.autoDynamic
-        )
+        scenes[index].status = status
     }
 
     // MARK: - Event Stream (SSE)
 
     private var eventStreamConnection: EventStreamConnection?
     private var eventConsumingTask: Task<Void, Never>?
+    private var refreshDebounceTask: Task<Void, Never>?
 
     func startEventStream() {
         guard eventConsumingTask == nil else { return }
@@ -516,8 +462,10 @@ final class HueAPIClient {
     func stopEventStream() {
         eventStreamConnection?.stop()
         eventConsumingTask?.cancel()
+        refreshDebounceTask?.cancel()
         eventStreamConnection = nil
         eventConsumingTask = nil
+        refreshDebounceTask = nil
     }
 
     private func applyEvents(_ events: [HueEvent]) {
@@ -531,7 +479,8 @@ final class HueAPIClient {
                     case "light":
                         EventStreamUpdater.apply(resource, to: &lights)
                     case "scene":
-                        if let status = resource.status?.active {
+                        if let status = resource.status?.active,
+                           let resourceStatus = resource.status {
                             if status == .static || status == .active {
                                 activeSceneId = resource.id
                                 activeSceneIsDynamic = false
@@ -539,7 +488,7 @@ final class HueAPIClient {
                                 activeSceneId = resource.id
                                 activeSceneIsDynamic = true
                             }
-                            updateSceneStatus(id: resource.id, status: resource.status!)
+                            updateSceneStatus(id: resource.id, status: resourceStatus)
                         }
                         if let speed = resource.speed {
                             updateSceneSpeed(id: resource.id, speed: speed)
@@ -549,7 +498,12 @@ final class HueAPIClient {
                     }
                 }
             case .add, .delete:
-                Task { await fetchAll() }
+                refreshDebounceTask?.cancel()
+                refreshDebounceTask = Task {
+                    try? await Task.sleep(for: .seconds(0.5))
+                    guard !Task.isCancelled else { return }
+                    await fetchAll()
+                }
             }
         }
     }

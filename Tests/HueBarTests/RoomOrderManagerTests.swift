@@ -15,7 +15,7 @@ private struct FakeGroup: LightGroup {
 @MainActor
 struct RoomOrderManagerTests {
     private let suiteName = "test-room-order"
-    private let pinnedKey = RoomOrderManager.pinnedRoomsKey
+    private let pinnedCategory = RoomOrderManager.PinCategory.rooms
     private let orderKey = RoomOrderManager.roomOrderKey
 
     private func makeManager() -> (RoomOrderManager, UserDefaults) {
@@ -31,7 +31,7 @@ struct RoomOrderManagerTests {
         let (_, defaults) = makeManager()
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        defaults.set(["2"], forKey: pinnedKey)
+        defaults.set(["2"], forKey: pinnedCategory.key)
         let mgr = RoomOrderManager(defaults: defaults)
 
         var groups = [
@@ -39,7 +39,7 @@ struct RoomOrderManagerTests {
             FakeGroup(id: "2", name: "Bedroom"),
             FakeGroup(id: "3", name: "Attic"),
         ]
-        mgr.sort(&groups, pinnedKey: pinnedKey)
+        mgr.sort(&groups, category: pinnedCategory)
 
         #expect(groups.map(\.id) == ["2", "3", "1"])
     }
@@ -53,7 +53,7 @@ struct RoomOrderManagerTests {
             FakeGroup(id: "2", name: "Bedroom"),
             FakeGroup(id: "3", name: "Attic"),
         ]
-        manager.sort(&groups, pinnedKey: pinnedKey)
+        manager.sort(&groups, category: pinnedCategory)
 
         #expect(groups.map(\.name) == ["Attic", "Bedroom", "Kitchen"])
     }
@@ -70,13 +70,13 @@ struct RoomOrderManagerTests {
         ]
 
         // Pin id "2"
-        manager.togglePin("2", groups: &groups, pinnedKey: pinnedKey)
-        #expect(manager.pinnedIds(for: pinnedKey).contains("2"))
+        manager.togglePin("2", groups: &groups, category: pinnedCategory)
+        #expect(manager.pinnedIds(for: pinnedCategory).contains("2"))
         #expect(groups.first?.id == "2")
 
         // Unpin id "2"
-        manager.togglePin("2", groups: &groups, pinnedKey: pinnedKey)
-        #expect(!manager.pinnedIds(for: pinnedKey).contains("2"))
+        manager.togglePin("2", groups: &groups, category: pinnedCategory)
+        #expect(!manager.pinnedIds(for: pinnedCategory).contains("2"))
     }
 
     @Test func togglePinPersistsToDefaults() {
@@ -84,9 +84,9 @@ struct RoomOrderManagerTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         var groups = [FakeGroup(id: "a", name: "Alpha")]
-        manager.togglePin("a", groups: &groups, pinnedKey: pinnedKey)
+        manager.togglePin("a", groups: &groups, category: pinnedCategory)
 
-        let stored = Set(defaults.stringArray(forKey: pinnedKey) ?? [])
+        let stored = Set(defaults.stringArray(forKey: pinnedCategory.key) ?? [])
         #expect(stored.contains("a"))
     }
 

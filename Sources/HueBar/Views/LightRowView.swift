@@ -10,6 +10,7 @@ struct LightRowView: View {
     let onTap: () -> Void
 
     @State private var sliderBrightness: Double = 0
+    @State private var isUserDragging = false
     @State private var debounceTask: Task<Void, Never>?
 
     private var groupedLight: GroupedLight? {
@@ -64,7 +65,9 @@ struct LightRowView: View {
                 Image(systemName: "sun.min")
                     .font(.caption2)
                     .foregroundStyle(isOn ? .white.opacity(0.6) : .white.opacity(0.2))
-                Slider(value: $sliderBrightness, in: 1...100)
+                Slider(value: $sliderBrightness, in: 1...100) { editing in
+                    isUserDragging = editing
+                }
                     .controlSize(.small)
                     .tint(isOn ? .white.opacity(0.8) : .white.opacity(0.15))
                     .disabled(!isOn)
@@ -86,12 +89,12 @@ struct LightRowView: View {
             sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
         }
         .onChange(of: groupedLight?.brightness) { _, newValue in
-            if let newValue {
+            if let newValue, !isUserDragging {
                 sliderBrightness = max(newValue, 1)
             }
         }
         .onChange(of: sliderBrightness) { _, newValue in
-            guard let id = groupedLightId else { return }
+            guard isUserDragging, let id = groupedLightId else { return }
             debounce(task: &debounceTask) {
                 try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
             }

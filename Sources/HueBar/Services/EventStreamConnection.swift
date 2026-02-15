@@ -85,7 +85,7 @@ final class EventStreamConnection: Sendable {
                         break
                     } catch {
                         do {
-                            try await Task.sleep(nanoseconds: backoff * 1_000_000_000)
+                            try await Task.sleep(for: .seconds(backoff))
                         } catch { break }
                         backoff = min(backoff * 2, 30)
                     }

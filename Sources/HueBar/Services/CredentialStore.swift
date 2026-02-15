@@ -2,7 +2,9 @@ import Foundation
 
 /// Stores Hue Bridge credentials in ~/Library/Application Support/HueBar/
 enum CredentialStore {
-    // Allow tests to override the storage directory
+    // SAFETY: `nonisolated(unsafe)` is acceptable here because this is only mutated
+    // in test setUp (single-threaded) before any concurrent access occurs at runtime.
+    // It must remain `var` so tests can redirect storage to a temporary directory.
     nonisolated(unsafe) static var storageDirectory: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return base.appendingPathComponent("HueBar", isDirectory: true)

@@ -1,29 +1,11 @@
+import os
 import SwiftUI
+
+private let logger = Logger(subsystem: "com.huebar", category: "HueBarApp")
 
 @main
 struct HueBarApp: App {
-    @State private var discovery = HueBridgeDiscovery()
-    @State private var authService = HueAuthService()
-    @State private var bridgeManager = BridgeManager()
-    @State private var hotkeyManager = HotkeyManager()
-    @State private var sleepWakeManager = SleepWakeManager()
-
-    init() {
-        // Load stored bridges (new format or migrated from legacy)
-        let credentials = CredentialStore.loadBridges()
-        for cred in credentials {
-            _bridgeManager.wrappedValue.addBridge(credentials: cred)
-        }
-        // Connect immediately so the menu bar icon reflects light state
-        if !credentials.isEmpty {
-            let manager = _bridgeManager.wrappedValue
-            let hotkeys = _hotkeyManager.wrappedValue
-            let sleepWake = _sleepWakeManager.wrappedValue
-            configureHotkeyHandler(hotkeyManager: hotkeys, bridgeManager: manager)
-            configureSleepWake(sleepWakeManager: sleepWake, bridgeManager: manager)
-            Task { await manager.connectAll() }
-        }
-    }
+    @State private var coordinator = AppCoordinator()
 
     var body: some Scene {
         MenuBarExtra("HueBar", systemImage: menuBarIcon) {
@@ -34,12 +16,12 @@ struct HueBarApp: App {
     }
 
     private var isSetupComplete: Bool {
-        !bridgeManager.bridges.isEmpty
+        !coordinator.bridgeManager.bridges.isEmpty
     }
 
     private var menuBarIcon: String {
         guard isSetupComplete else { return "lightbulb" }
-        return bridgeManager.bridges.contains { bridge in
+        return coordinator.bridgeManager.bridges.contains { bridge in
             bridge.client.groupedLights.contains(where: \.isOn)
         } ? "lightbulb.fill" : "lightbulb"
     }
@@ -48,57 +30,19 @@ struct HueBarApp: App {
     private var mainView: some View {
         if isSetupComplete {
             MenuBarView(
-                bridgeManager: bridgeManager,
-                hotkeyManager: hotkeyManager,
-                sleepWakeManager: sleepWakeManager,
-                onSignOut: signOut
+                bridgeManager: coordinator.bridgeManager,
+                hotkeyManager: coordinator.hotkeyManager,
+                sleepWakeManager: coordinator.sleepWakeManager,
+                onSignOut: coordinator.signOut
             )
         } else {
             SetupView(
-                discovery: discovery,
-                authService: authService,
-                bridgeManager: bridgeManager,
-                onSetupComplete: completeSetup
+                discovery: coordinator.discovery,
+                authService: coordinator.authService,
+                bridgeManager: coordinator.bridgeManager,
+                onSetupComplete: coordinator.completeSetup
             )
         }
     }
-
-    private func completeSetup() {
-        authService.authState = .authenticated(applicationKey: "stored")
-        configureHotkeyHandler(hotkeyManager: hotkeyManager, bridgeManager: bridgeManager)
-        configureSleepWake(sleepWakeManager: sleepWakeManager, bridgeManager: bridgeManager)
-        Task { await bridgeManager.connectAll() }
-    }
-
-    private func signOut() {
-        bridgeManager.removeAll()
-        CredentialStore.delete()
-        authService.signOut()
-        sleepWakeManager.stopObserving()
-        hotkeyManager.onHotkeyTriggered = nil
-    }
-
-    private func configureHotkeyHandler(hotkeyManager: HotkeyManager, bridgeManager: BridgeManager) {
-        hotkeyManager.onHotkeyTriggered = { binding in
-            for bridge in bridgeManager.bridges {
-                let client = bridge.client
-                let groupedLightId: String? = switch binding.targetType {
-                case .room: client.rooms.first(where: { $0.id == binding.targetId })?.groupedLightId
-                case .zone: client.zones.first(where: { $0.id == binding.targetId })?.groupedLightId
-                }
-                guard let groupedLightId,
-                      let groupedLight = client.groupedLight(for: groupedLightId) else { continue }
-                Task {
-                    try? await client.toggleGroupedLight(id: groupedLightId, on: !groupedLight.isOn)
-                }
-                return
-            }
-        }
-    }
-
-    private func configureSleepWake(sleepWakeManager: SleepWakeManager, bridgeManager: BridgeManager) {
-        if let primary = bridgeManager.bridges.first {
-            sleepWakeManager.configure(apiClient: primary.client)
-        }
-    }
 }
+

@@ -1,5 +1,8 @@
 import Foundation
 import AppKit
+import os
+
+private let logger = Logger(subsystem: "com.huebar", category: "SleepWakeManager")
 
 @Observable
 @MainActor
@@ -80,7 +83,13 @@ final class SleepWakeManager {
             for config in sleepConfigs {
                 guard let glId = groupedLightId(for: config, apiClient: apiClient),
                       apiClient.groupedLight(for: glId)?.isOn == true else { continue }
-                group.addTask { try? await apiClient.toggleGroupedLight(id: glId, on: false) }
+                group.addTask {
+                    do {
+                        try await apiClient.toggleGroupedLight(id: glId, on: false)
+                    } catch {
+                        logger.error("Failed to toggle light off \(glId): \(error.localizedDescription)")
+                    }
+                }
             }
         }
     }
@@ -95,9 +104,21 @@ final class SleepWakeManager {
             for config in wakeConfigs {
                 guard let glId = groupedLightId(for: config, apiClient: apiClient) else { continue }
                 if let sceneId = config.wakeSceneId {
-                    group.addTask { try? await apiClient.recallScene(id: sceneId) }
+                    group.addTask {
+                        do {
+                            try await apiClient.recallScene(id: sceneId)
+                        } catch {
+                            logger.error("Failed to recall scene \(sceneId): \(error.localizedDescription)")
+                        }
+                    }
                 } else {
-                    group.addTask { try? await apiClient.toggleGroupedLight(id: glId, on: true) }
+                    group.addTask {
+                        do {
+                            try await apiClient.toggleGroupedLight(id: glId, on: true)
+                        } catch {
+                            logger.error("Failed to toggle light on \(glId): \(error.localizedDescription)")
+                        }
+                    }
                 }
             }
         }

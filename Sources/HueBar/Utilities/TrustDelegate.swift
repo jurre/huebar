@@ -33,7 +33,9 @@ final class HueBridgeTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sen
 
         // Use basic X.509 policy (no hostname check) — the bridge cert's CN
         // is the bridge ID (e.g. "ECB5FAFFFE123456"), not the IP address.
-        SecTrustSetPolicies(serverTrust, SecPolicyCreateBasicX509())
+        guard SecTrustSetPolicies(serverTrust, SecPolicyCreateBasicX509()) == errSecSuccess else {
+            return (.cancelAuthenticationChallenge, nil)
+        }
 
         let isValid = SecTrustEvaluateWithError(serverTrust, nil)
 

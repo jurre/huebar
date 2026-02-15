@@ -54,9 +54,6 @@ struct MenuBarView: View {
         .frame(width: 300, height: 550)
         .clipped()
         .preferredColorScheme(.dark)
-        .task {
-            await bridgeManager.connectAll()
-        }
     }
 
     // MARK: - Room List
