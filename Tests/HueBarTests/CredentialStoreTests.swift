@@ -108,6 +108,67 @@ struct CredentialStoreTests {
 
         #expect(discovery.discoveredBridges.isEmpty)
     }
+
+    // MARK: - Bridge Discovery Dedup
+
+    @Test @MainActor func manualBridgeSameIPNotDuplicated() {
+        let discovery = HueBridgeDiscovery()
+        let first = discovery.addManualBridge(ip: "192.168.1.50")
+        let second = discovery.addManualBridge(ip: "192.168.1.50")
+
+        #expect(discovery.discoveredBridges.count == 1)
+        #expect(discovery.discoveredBridges.first?.ip == "192.168.1.50")
+        #expect(first.ip == second.ip)
+    }
+
+    @Test @MainActor func manualBridgesDifferentIPsBothAdded() {
+        let discovery = HueBridgeDiscovery()
+        _ = discovery.addManualBridge(ip: "192.168.1.50")
+        _ = discovery.addManualBridge(ip: "192.168.1.51")
+
+        #expect(discovery.discoveredBridges.count == 2)
+        let ips = Set(discovery.discoveredBridges.map(\.ip))
+        #expect(ips == ["192.168.1.50", "192.168.1.51"])
+    }
+
+    @Test @MainActor func cachedBridgeNotDuplicatedWhenManualExists() throws {
+        cleanLastBridgeIP()
+        defer { cleanLastBridgeIP() }
+        try CredentialStore.saveLastBridgeIP("10.0.0.5")
+        let discovery = HueBridgeDiscovery()
+        _ = discovery.addManualBridge(ip: "10.0.0.5")
+
+        discovery.addCachedBridge()
+
+        #expect(discovery.discoveredBridges.count == 1)
+        #expect(discovery.discoveredBridges.first?.ip == "10.0.0.5")
+    }
+
+    @Test @MainActor func cachedBridgeAddedWhenNoDuplicate() throws {
+        cleanLastBridgeIP()
+        defer { cleanLastBridgeIP() }
+        try CredentialStore.saveLastBridgeIP("10.0.0.5")
+        let discovery = HueBridgeDiscovery()
+        _ = discovery.addManualBridge(ip: "192.168.1.1")
+
+        discovery.addCachedBridge()
+
+        #expect(discovery.discoveredBridges.count == 2)
+        let ips = Set(discovery.discoveredBridges.map(\.ip))
+        #expect(ips == ["192.168.1.1", "10.0.0.5"])
+    }
+
+    @Test @MainActor func cachedBridgeCalledTwiceNotDuplicated() throws {
+        cleanLastBridgeIP()
+        defer { cleanLastBridgeIP() }
+        try CredentialStore.saveLastBridgeIP("10.0.0.5")
+
+        let discovery = HueBridgeDiscovery()
+        discovery.addCachedBridge()
+        discovery.addCachedBridge()
+
+        #expect(discovery.discoveredBridges.count == 1)
+    }
 }
 
 @Suite
