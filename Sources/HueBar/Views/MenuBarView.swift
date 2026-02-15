@@ -14,6 +14,9 @@ struct MenuBarView: View {
     // Drag-and-drop state
     @State private var roomDragTarget: String?
     @State private var zoneDragTarget: String?
+    
+    // Visual styling for drag targets
+    private let dragTargetHighlight = Color.blue.opacity(0.2)
 
     /// The primary bridge client (first connected bridge)
     private var primaryClient: HueAPIClient? {
@@ -138,7 +141,7 @@ struct MenuBarView: View {
                                 selectedRoom = room
                             }
                         }
-                        .background(roomDragTarget == room.id ? Color.blue.opacity(0.2) : Color.clear)
+                        .background(roomDragTarget == room.id ? dragTargetHighlight : Color.clear)
                         .draggable(room)
                         .dropDestination(for: Room.self) { droppedRooms, _ in
                             guard let draggedRoom = droppedRooms.first else { return false }
@@ -164,7 +167,7 @@ struct MenuBarView: View {
                                 selectedZone = zone
                             }
                         }
-                        .background(zoneDragTarget == zone.id ? Color.blue.opacity(0.2) : Color.clear)
+                        .background(zoneDragTarget == zone.id ? dragTargetHighlight : Color.clear)
                         .draggable(zone)
                         .dropDestination(for: Zone.self) { droppedZones, _ in
                             guard let draggedZone = droppedZones.first else { return false }
@@ -210,7 +213,7 @@ struct MenuBarView: View {
                             LightRowView(apiClient: client, name: room.name, archetype: room.metadata.archetype, groupedLightId: room.groupedLightId, groupId: room.id, isPinned: client.isRoomPinned(room.id)) {
                                 withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = room }
                             }
-                            .background(roomDragTarget == room.id ? Color.blue.opacity(0.2) : Color.clear)
+                            .background(roomDragTarget == room.id ? dragTargetHighlight : Color.clear)
                             .draggable(room)
                             .dropDestination(for: Room.self) { droppedRooms, _ in
                                 guard let draggedRoom = droppedRooms.first else { return false }
@@ -234,7 +237,7 @@ struct MenuBarView: View {
                                 LightRowView(apiClient: client, name: zone.name, archetype: zone.metadata.archetype, groupedLightId: zone.groupedLightId, groupId: zone.id, isPinned: client.isZonePinned(zone.id)) {
                                     withAnimation(.easeInOut(duration: 0.25)) { selectedZone = zone }
                                 }
-                                .background(zoneDragTarget == zone.id ? Color.blue.opacity(0.2) : Color.clear)
+                                .background(zoneDragTarget == zone.id ? dragTargetHighlight : Color.clear)
                                 .draggable(zone)
                                 .dropDestination(for: Zone.self) { droppedZones, _ in
                                     guard let draggedZone = droppedZones.first else { return false }
