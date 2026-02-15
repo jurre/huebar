@@ -103,6 +103,8 @@ struct RoomDetailView: View {
                         Slider(value: $sliderBrightness, in: 1...100)
                             .controlSize(.small)
                             .tint(.hueAccent)
+                            .accessibilityLabel("Brightness")
+                            .accessibilityValue(String(format: "%.0f%%", sliderBrightness))
                         Image(systemName: "sun.max.fill")
                             .font(.caption)
                             .foregroundStyle(.secondary)
