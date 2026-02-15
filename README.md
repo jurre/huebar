@@ -22,6 +22,7 @@ Philips discontinued the official Hue macOS app years ago, and most third-party 
 - 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights
 - 🌉 **Multi-Bridge Support** — Connect multiple Hue Bridges and control all your lights from one place
 - 📌 **Pin to Top** — Pin favorite rooms/zones to the top of the list
+- 🔄 **Drag to Reorder** — Drag and drop rooms/zones to customize their order in the menu (persists across launches)
 - ⌨️ **Global Keyboard Shortcuts** — Assign system-wide hotkeys to toggle any room or zone on/off, even when HueBar isn't focused
 - 😴 **Sleep/Wake Automation** — Automatically turn rooms off when your Mac sleeps and back on when it wakes, with optional scene recall
 - 🔄 **Real-time Updates** — Live state updates via Server-Sent Events (SSE) from the Hue Bridge
