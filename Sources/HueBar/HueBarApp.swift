@@ -4,22 +4,20 @@ import SwiftUI
 struct HueBarApp: App {
     @State private var discovery = HueBridgeDiscovery()
     @State private var authService = HueAuthService()
-    @State private var apiClient: HueAPIClient?
+    @State private var bridgeManager = BridgeManager()
     @State private var hotkeyManager = HotkeyManager()
     @State private var sleepWakeManager = SleepWakeManager()
 
     init() {
-        if let creds = CredentialStore.load() {
-            let client = try? HueAPIClient(
-                bridgeIP: creds.bridgeIP,
-                applicationKey: creds.applicationKey
-            )
-            _apiClient = State(initialValue: client)
-            if let client {
-                Self.configureHotkeyHandler(_hotkeyManager.wrappedValue, client: client)
-                _sleepWakeManager.wrappedValue.configure(apiClient: client)
-                Task { await client.fetchAll(); client.startEventStream() }
-            }
+        // Load stored bridges (new format or migrated from legacy)
+        let credentials = CredentialStore.loadBridges()
+        for cred in credentials {
+            _bridgeManager.wrappedValue.addBridge(credentials: cred)
+        }
+        // Connect immediately so the menu bar icon reflects light state
+        if !credentials.isEmpty {
+            let manager = _bridgeManager.wrappedValue
+            Task { await manager.connectAll() }
         }
     }
 
@@ -27,59 +25,77 @@ struct HueBarApp: App {
         MenuBarExtra("HueBar", systemImage: menuBarIcon) {
             mainView
                 .frame(width: 300)
-                .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
-                    if isAuthenticated, apiClient == nil,
-                       let key = authService.applicationKey,
-                       let ip = authService.bridgeIP {
-                        apiClient = try? HueAPIClient(bridgeIP: ip, applicationKey: key)
-                    }
-                    Self.configureHotkeyHandler(hotkeyManager, client: apiClient)
-                    if let apiClient {
-                        sleepWakeManager.configure(apiClient: apiClient)
-                    } else {
-                        sleepWakeManager.stopObserving()
-                    }
-                }
         }
         .menuBarExtraStyle(.window)
     }
 
+    private var isSetupComplete: Bool {
+        !bridgeManager.bridges.isEmpty
+    }
+
     private var menuBarIcon: String {
-        guard authService.isAuthenticated, let client = apiClient else {
-            return "lightbulb"
-        }
-        return client.groupedLights.contains(where: \.isOn) ? "lightbulb.fill" : "lightbulb"
+        guard isSetupComplete else { return "lightbulb" }
+        return bridgeManager.bridges.contains { bridge in
+            bridge.client.groupedLights.contains(where: \.isOn)
+        } ? "lightbulb.fill" : "lightbulb"
     }
 
     @ViewBuilder
     private var mainView: some View {
-        if authService.isAuthenticated, let client = apiClient {
-            MenuBarView(apiClient: client, hotkeyManager: hotkeyManager, sleepWakeManager: sleepWakeManager, onSignOut: signOut)
+        if isSetupComplete {
+            MenuBarView(
+                bridgeManager: bridgeManager,
+                hotkeyManager: hotkeyManager,
+                sleepWakeManager: sleepWakeManager,
+                onSignOut: signOut
+            )
         } else {
-            SetupView(discovery: discovery, authService: authService)
+            SetupView(
+                discovery: discovery,
+                authService: authService,
+                bridgeManager: bridgeManager,
+                onSetupComplete: completeSetup
+            )
         }
     }
 
-    private func signOut() {
-        apiClient?.stopEventStream()
-        authService.signOut()
-        sleepWakeManager.stopObserving()
-        apiClient = nil
-        Self.configureHotkeyHandler(hotkeyManager, client: nil)
+    private func completeSetup() {
+        authService.authState = .authenticated(applicationKey: "stored")
+        configureHotkeyHandler()
+        configureSleepWake()
+        Task { await bridgeManager.connectAll() }
     }
 
-    private static func configureHotkeyHandler(_ manager: HotkeyManager, client: HueAPIClient?) {
-        manager.onHotkeyTriggered = { binding in
-            guard let client else { return }
-            let groupedLightId: String? = switch binding.targetType {
-            case .room: client.rooms.first(where: { $0.id == binding.targetId })?.groupedLightId
-            case .zone: client.zones.first(where: { $0.id == binding.targetId })?.groupedLightId
+    private func signOut() {
+        bridgeManager.removeAll()
+        CredentialStore.delete()
+        authService.signOut()
+        sleepWakeManager.stopObserving()
+        hotkeyManager.onHotkeyTriggered = nil
+    }
+
+    private func configureHotkeyHandler() {
+        hotkeyManager.onHotkeyTriggered = { binding in
+            for bridge in bridgeManager.bridges {
+                let client = bridge.client
+                let groupedLightId: String? = switch binding.targetType {
+                case .room: client.rooms.first(where: { $0.id == binding.targetId })?.groupedLightId
+                case .zone: client.zones.first(where: { $0.id == binding.targetId })?.groupedLightId
+                }
+                guard let groupedLightId,
+                      let groupedLight = client.groupedLight(for: groupedLightId) else { continue }
+                Task {
+                    try? await client.toggleGroupedLight(id: groupedLightId, on: !groupedLight.isOn)
+                }
+                return
             }
-            guard let groupedLightId,
-                  let groupedLight = client.groupedLight(for: groupedLightId) else { return }
-            Task {
-                try? await client.toggleGroupedLight(id: groupedLightId, on: !groupedLight.isOn)
-            }
+        }
+    }
+
+    private func configureSleepWake() {
+        // For now, configure with the first bridge's client
+        if let primary = bridgeManager.bridges.first {
+            sleepWakeManager.configure(apiClient: primary.client)
         }
     }
 }

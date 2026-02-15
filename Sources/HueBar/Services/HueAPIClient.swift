@@ -32,22 +32,50 @@ final class HueAPIClient {
 
     let orderManager = RoomOrderManager()
 
-    private let bridgeIP: String
-    private let applicationKey: String
+    let bridgeIP: String
+    let applicationKey: String
     private let session: URLSession
 
+    /// Whether this client connects to a local mock bridge (uses HTTP instead of HTTPS)
+    private var isLocalMock: Bool {
+        let host = bridgeIP.split(separator: ":").first.map(String.init) ?? bridgeIP
+        return host == "127.0.0.1" || host == "localhost"
+    }
+
+    /// The scheme to use for API requests
+    private var scheme: String { isLocalMock ? "http" : "https" }
+
+    /// The host component (without port)
+    private var host: String {
+        String(bridgeIP.split(separator: ":").first ?? Substring(bridgeIP))
+    }
+
+    /// The port component (if specified)
+    private var port: Int? {
+        let parts = bridgeIP.split(separator: ":")
+        return parts.count == 2 ? Int(parts[1]) : nil
+    }
+
     init(bridgeIP: String, applicationKey: String) throws {
-        guard IPValidation.isValid(bridgeIP) else {
+        // Allow host:port format for mock bridges (e.g. "127.0.0.1:8080")
+        let hostPart = String(bridgeIP.split(separator: ":").first ?? Substring(bridgeIP))
+        let isLocal = hostPart == "127.0.0.1" || hostPart == "localhost"
+        guard IPValidation.isValid(hostPart) || isLocal else {
             throw HueAPIError.invalidBridgeIP
         }
         self.bridgeIP = bridgeIP
         self.applicationKey = applicationKey
         let config = URLSessionConfiguration.default
-        self.session = URLSession(
-            configuration: config,
-            delegate: HueBridgeTrustDelegate(bridgeIP: bridgeIP),
-            delegateQueue: nil
-        )
+        if isLocal {
+            // No TLS delegate needed for local mock bridges
+            self.session = URLSession(configuration: config)
+        } else {
+            self.session = URLSession(
+                configuration: config,
+                delegate: HueBridgeTrustDelegate(bridgeIP: hostPart),
+                delegateQueue: nil
+            )
+        }
     }
 
     // Internal init for testing with a custom URLSession
@@ -541,8 +569,9 @@ final class HueAPIClient {
 
     private func makeRequest(path: String, method: String = "GET", body: Data? = nil) throws -> URLRequest {
         var components = URLComponents()
-        components.scheme = "https"
-        components.host = bridgeIP
+        components.scheme = scheme
+        components.host = host
+        components.port = port
         components.path = "/clip/v2/resource/\(path)"
         guard let url = components.url else {
             throw HueAPIError.invalidResponse

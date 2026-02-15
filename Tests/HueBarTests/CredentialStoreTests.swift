@@ -4,7 +4,7 @@ import Testing
 
 @testable import HueBar
 
-@Suite(.serialized)
+@Suite(.serialized) @MainActor
 struct CredentialStoreTests {
     init() {
         // Use a temp directory so tests never touch real credentials

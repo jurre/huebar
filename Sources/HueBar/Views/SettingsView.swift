@@ -2,15 +2,34 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsView: View {
-    @Bindable var apiClient: HueAPIClient
+    @Bindable var bridgeManager: BridgeManager
     @Bindable var hotkeyManager: HotkeyManager
     @Bindable var sleepWakeManager: SleepWakeManager
     var onSignOut: () -> Void
     var onBack: () -> Void
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var editingBridgeId: String?
+    @State private var editingBridgeName: String = ""
+    @State private var showAddBridge = false
+
+    /// Primary client for shortcuts/sleep-wake settings
+    private var primaryClient: HueAPIClient? {
+        bridgeManager.bridges.first?.client
+    }
 
     var body: some View {
+        if showAddBridge {
+            AddBridgeView(bridgeManager: bridgeManager) {
+                withAnimation(.easeInOut(duration: 0.25)) { showAddBridge = false }
+            }
+            .transition(.move(edge: .trailing))
+        } else {
+            settingsContent
+        }
+    }
+
+    private var settingsContent: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
@@ -52,17 +71,43 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal)
 
+                    // Bridges section
+                    SectionHeaderView(title: "BRIDGES")
+
+                    VStack(spacing: 8) {
+                        ForEach(bridgeManager.bridges) { bridge in
+                            bridgeRow(bridge)
+                        }
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) { showAddBridge = true }
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus.circle")
+                                Text("Add Bridge")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(8)
+                            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal)
+
                     // Shortcuts section
-                    SectionHeaderView(title: "SHORTCUTS")
+                    if let client = primaryClient {
+                        SectionHeaderView(title: "SHORTCUTS")
 
-                    ShortcutsSettingsView(hotkeyManager: hotkeyManager, apiClient: apiClient)
-                        .padding(.horizontal)
+                        ShortcutsSettingsView(hotkeyManager: hotkeyManager, apiClient: client)
+                            .padding(.horizontal)
 
-                    // Sleep / Wake section
-                    SectionHeaderView(title: "SLEEP / WAKE")
+                        // Sleep / Wake section
+                        SectionHeaderView(title: "SLEEP / WAKE")
 
-                    SleepWakeSettingsView(sleepWakeManager: sleepWakeManager, apiClient: apiClient)
-                        .padding(.horizontal)
+                        SleepWakeSettingsView(sleepWakeManager: sleepWakeManager, apiClient: client)
+                            .padding(.horizontal)
+                    }
 
                     Divider()
                         .padding(.top, 4)
@@ -87,4 +132,66 @@ struct SettingsView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
+    private func bridgeRow(_ bridge: BridgeConnection) -> some View {
+        HStack {
+            if editingBridgeId == bridge.id {
+                TextField("Name", text: $editingBridgeName, onCommit: {
+                    bridge.name = editingBridgeName
+                    let creds = BridgeCredentials(
+                        id: bridge.id,
+                        bridgeIP: bridge.client.bridgeIP,
+                        applicationKey: bridge.client.applicationKey,
+                        name: editingBridgeName
+                    )
+                    try? CredentialStore.saveBridge(creds)
+                    editingBridgeId = nil
+                })
+                .textFieldStyle(.roundedBorder)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bridge.name)
+                        .fontWeight(.medium)
+                    Text(bridge.client.bridgeIP)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                statusIndicator(bridge.status)
+
+                Menu {
+                    Button("Rename") {
+                        editingBridgeName = bridge.name
+                        editingBridgeId = bridge.id
+                    }
+                    if bridgeManager.bridges.count > 1 {
+                        Button("Remove", role: .destructive) {
+                            bridgeManager.removeBridge(id: bridge.id)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 24)
+            }
+        }
+        .padding(8)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func statusIndicator(_ status: BridgeConnectionStatus) -> some View {
+        Group {
+            switch status {
+            case .connected:
+                Circle().fill(.green).frame(width: 8, height: 8)
+            case .connecting:
+                ProgressView().controlSize(.mini)
+            case .error:
+                Circle().fill(.red).frame(width: 8, height: 8)
+            }
+        }
+    }
 }
