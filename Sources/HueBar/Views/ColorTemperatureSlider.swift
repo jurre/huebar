@@ -6,7 +6,7 @@ struct ColorTemperatureSlider: View {
 
     private let mirekRange = 153...500
 
-    private let thumbSize: CGFloat = 14
+    private let thumbSize: CGFloat = 20
     private let trackHeight: CGFloat = 4
 
     var body: some View {

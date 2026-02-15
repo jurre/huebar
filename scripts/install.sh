@@ -41,10 +41,8 @@ if [ "$SKIP_INSTALL" = false ] && pgrep -x "$APP_NAME" > /dev/null 2>&1; then
     fi
 fi
 
-if [ ! -f ".build/release/$APP_NAME" ]; then
-    echo "Building release binary..."
-    swift build -c release --quiet
-fi
+echo "Building release binary..."
+swift build -c release --quiet
 
 echo "Creating app bundle..."
 if [ -z "${APP_DIR:-}" ]; then
