@@ -92,64 +92,65 @@ struct RoomDetailView: View {
             .padding(.horizontal)
             .padding(.vertical, 10)
 
-            // Brightness slider
+            // Sliders
             if isOn, groupedLightId != nil {
-                HStack(spacing: 6) {
-                    Image(systemName: "sun.min")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Slider(value: $sliderBrightness, in: 1...100)
-                        .controlSize(.small)
-                        .tint(.hueAccent)
-                    Image(systemName: "sun.max.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 4)
-
-                // Color temperature slider
-                if groupedLight?.colorTemperature != nil {
+                VStack(spacing: 10) {
+                    // Brightness slider
                     HStack(spacing: 6) {
-                        Image(systemName: "flame")
+                        Image(systemName: "sun.min")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .frame(width: 12)
-                        ColorTemperatureSlider(mirek: $sliderMirek) { newMirek in
-                            guard let id = groupedLightId else { return }
-                            debounce(task: &colorTempDebounceTask) {
-                                try? await apiClient.setGroupedLightColorTemperature(id: id, mirek: newMirek)
-                            }
-                        }
-                        Image(systemName: "snowflake")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 12)
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                }
-
-                // Speed slider (visible when active scene is in dynamic mode)
-                if isActiveSceneDynamic {
-                    HStack(spacing: 6) {
-                        Image(systemName: "tortoise")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 12)
-                        Slider(value: $sliderSpeed, in: 0...1)
+                        Slider(value: $sliderBrightness, in: 1...100)
                             .controlSize(.small)
                             .tint(.hueAccent)
-                            .accessibilityLabel("Scene speed")
-                            .accessibilityValue(String(format: "%.0f%%", sliderSpeed * 100))
-                        Image(systemName: "hare")
+                            .accessibilityLabel("Brightness")
+                            .accessibilityValue(String(format: "%.0f%%", sliderBrightness))
+                        Image(systemName: "sun.max.fill")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .frame(width: 12)
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
+
+                    // Color temperature slider
+                    if groupedLight?.colorTemperature != nil {
+                        HStack(spacing: 6) {
+                            Image(systemName: "flame")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 12)
+                            ColorTemperatureSlider(mirek: $sliderMirek) { newMirek in
+                                guard let id = groupedLightId else { return }
+                                debounce(task: &colorTempDebounceTask) {
+                                    try? await apiClient.setGroupedLightColorTemperature(id: id, mirek: newMirek)
+                                }
+                            }
+                            Image(systemName: "snowflake")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 12)
+                        }
+                    }
+
+                    // Speed slider (visible when active scene is in dynamic mode)
+                    if isActiveSceneDynamic {
+                        HStack(spacing: 6) {
+                            Image(systemName: "tortoise")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 12)
+                            Slider(value: $sliderSpeed, in: 0...1)
+                                .controlSize(.small)
+                                .tint(.hueAccent)
+                                .accessibilityLabel("Scene speed")
+                                .accessibilityValue(String(format: "%.0f%%", sliderSpeed * 100))
+                            Image(systemName: "hare")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 12)
+                        }
+                    }
                 }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
             }
 
             Divider()
