@@ -233,7 +233,7 @@ final class HueBridgeDiscovery {
                     if let ip = self.extractIP(from: connection) {
                         Self.logger.info("Resolved \(bridgeID) to \(ip)")
                         let bridge = DiscoveredBridge(id: bridgeID, ip: ip, name: name)
-                        if !self.discoveredBridges.contains(where: { $0.id == bridgeID }) {
+                        if !self.discoveredBridges.contains(where: { $0.id == bridgeID || $0.ip == ip }) {
                             self.discoveredBridges.append(bridge)
                         }
                     }
