@@ -77,19 +77,20 @@ struct RoomOrderManagerTests {
     }
     
     @Test func sortRespectsCustomOrderWithPins() {
-        let (manager, defaults) = makeManager()
+        let (_, defaults) = makeManager()
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         // Pin item "2" and set custom order for unpinned: 3, 1
         defaults.set(["2"], forKey: pinnedCategory.key)
         defaults.set(["3", "1", "2"], forKey: orderKey)
+        let mgr = RoomOrderManager(defaults: defaults)
 
         var groups = [
             FakeGroup(id: "1", name: "Kitchen"),
             FakeGroup(id: "2", name: "Bedroom"),
             FakeGroup(id: "3", name: "Attic"),
         ]
-        manager.sort(&groups, category: pinnedCategory)
+        mgr.sort(&groups, category: pinnedCategory)
 
         // Pinned items first, then custom order for unpinned
         #expect(groups.map(\.id) == ["2", "3", "1"])
