@@ -57,6 +57,62 @@ struct RoomOrderManagerTests {
 
         #expect(groups.map(\.name) == ["Attic", "Bedroom", "Kitchen"])
     }
+    
+    @Test func sortRespectsCustomOrder() {
+        let (manager, defaults) = makeManager()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Set custom order: 3, 1, 2
+        defaults.set(["3", "1", "2"], forKey: orderKey)
+
+        var groups = [
+            FakeGroup(id: "1", name: "Kitchen"),
+            FakeGroup(id: "2", name: "Bedroom"),
+            FakeGroup(id: "3", name: "Attic"),
+        ]
+        manager.sort(&groups, category: pinnedCategory)
+
+        // Should follow custom order, not alphabetical
+        #expect(groups.map(\.id) == ["3", "1", "2"])
+    }
+    
+    @Test func sortRespectsCustomOrderWithPins() {
+        let (_, defaults) = makeManager()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Pin item "2" and set custom order for unpinned: 3, 1
+        defaults.set(["2"], forKey: pinnedCategory.key)
+        defaults.set(["3", "1", "2"], forKey: orderKey)
+        let mgr = RoomOrderManager(defaults: defaults)
+
+        var groups = [
+            FakeGroup(id: "1", name: "Kitchen"),
+            FakeGroup(id: "2", name: "Bedroom"),
+            FakeGroup(id: "3", name: "Attic"),
+        ]
+        mgr.sort(&groups, category: pinnedCategory)
+
+        // Pinned items first, then custom order for unpinned
+        #expect(groups.map(\.id) == ["2", "3", "1"])
+    }
+    
+    @Test func sortFallsBackToAlphabeticalForUnorderedItems() {
+        let (manager, defaults) = makeManager()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Only set custom order for item "1"
+        defaults.set(["1"], forKey: orderKey)
+
+        var groups = [
+            FakeGroup(id: "1", name: "Kitchen"),
+            FakeGroup(id: "2", name: "Bedroom"),
+            FakeGroup(id: "3", name: "Attic"),
+        ]
+        manager.sort(&groups, category: pinnedCategory)
+
+        // Item "1" comes first (has custom order), then "3" and "2" alphabetically
+        #expect(groups.map(\.id) == ["1", "3", "2"])
+    }
 
     // MARK: - togglePin
 
