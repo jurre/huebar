@@ -1,6 +1,6 @@
 import Foundation
 
-struct ResourceLink: Decodable, Sendable, Hashable {
+struct ResourceLink: Codable, Sendable, Hashable {
     let rid: String
     let rtype: String
 }

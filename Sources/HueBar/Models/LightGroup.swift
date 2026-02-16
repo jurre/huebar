@@ -1,6 +1,6 @@
 import Foundation
 
-protocol LightGroup: Decodable, Sendable, Identifiable where ID == String {
+protocol LightGroup: Codable, Sendable, Identifiable where ID == String {
     var id: String { get }
     var name: String { get }
     var services: [ResourceLink] { get }
@@ -8,7 +8,7 @@ protocol LightGroup: Decodable, Sendable, Identifiable where ID == String {
     var groupedLightId: String? { get }
 }
 
-struct GroupMetadata: Decodable, Sendable {
+struct GroupMetadata: Codable, Sendable {
     let name: String
     let archetype: String?
 }
