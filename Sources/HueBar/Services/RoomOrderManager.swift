@@ -89,23 +89,26 @@ final class RoomOrderManager {
         }
     }
 
-    func move<T: LightGroup>(in groups: inout [T], fromId: String, toId: String, orderKey: String) {
+    func move<T: LightGroup>(in groups: inout [T], fromId: String, toId: String, orderKey: String, category: PinCategory) {
         guard let fromIndex = groups.firstIndex(where: { $0.id == fromId }),
               let toIndex = groups.firstIndex(where: { $0.id == toId }),
               fromIndex != toIndex else { return }
         let item = groups.remove(at: fromIndex)
         groups.insert(item, at: toIndex)
-        // Persist the new order to UserDefaults
         defaults.set(groups.map(\.id), forKey: orderKey)
+        // Re-sort to preserve pin priority invariant
+        sort(&groups, category: category)
     }
 
-    func moveToEdge<T: LightGroup>(in groups: inout [T], id: String, toTop: Bool, orderKey: String) {
+    func moveToEdge<T: LightGroup>(in groups: inout [T], id: String, toTop: Bool, orderKey: String, category: PinCategory) {
         guard let fromIndex = groups.firstIndex(where: { $0.id == id }) else { return }
         let targetIndex = toTop ? 0 : groups.count - 1
         guard fromIndex != targetIndex else { return }
         let item = groups.remove(at: fromIndex)
         groups.insert(item, at: targetIndex)
         defaults.set(groups.map(\.id), forKey: orderKey)
+        // Re-sort to preserve pin priority invariant
+        sort(&groups, category: category)
     }
 
     // MARK: - Convenience wrappers
@@ -131,11 +134,11 @@ final class RoomOrderManager {
     func sortRooms(_ rooms: inout [Room]) { sort(&rooms, category: .rooms) }
     func sortZones(_ zones: inout [Zone]) { sort(&zones, category: .zones) }
 
-    func moveRoom(fromId: String, toId: String, rooms: inout [Room]) { move(in: &rooms, fromId: fromId, toId: toId, orderKey: Self.roomOrderKey) }
-    func moveZone(fromId: String, toId: String, zones: inout [Zone]) { move(in: &zones, fromId: fromId, toId: toId, orderKey: Self.zoneOrderKey) }
+    func moveRoom(fromId: String, toId: String, rooms: inout [Room]) { move(in: &rooms, fromId: fromId, toId: toId, orderKey: Self.roomOrderKey, category: .rooms) }
+    func moveZone(fromId: String, toId: String, zones: inout [Zone]) { move(in: &zones, fromId: fromId, toId: toId, orderKey: Self.zoneOrderKey, category: .zones) }
 
-    func moveRoomToTop(id: String, rooms: inout [Room]) { moveToEdge(in: &rooms, id: id, toTop: true, orderKey: Self.roomOrderKey) }
-    func moveRoomToBottom(id: String, rooms: inout [Room]) { moveToEdge(in: &rooms, id: id, toTop: false, orderKey: Self.roomOrderKey) }
-    func moveZoneToTop(id: String, zones: inout [Zone]) { moveToEdge(in: &zones, id: id, toTop: true, orderKey: Self.zoneOrderKey) }
-    func moveZoneToBottom(id: String, zones: inout [Zone]) { moveToEdge(in: &zones, id: id, toTop: false, orderKey: Self.zoneOrderKey) }
+    func moveRoomToTop(id: String, rooms: inout [Room]) { moveToEdge(in: &rooms, id: id, toTop: true, orderKey: Self.roomOrderKey, category: .rooms) }
+    func moveRoomToBottom(id: String, rooms: inout [Room]) { moveToEdge(in: &rooms, id: id, toTop: false, orderKey: Self.roomOrderKey, category: .rooms) }
+    func moveZoneToTop(id: String, zones: inout [Zone]) { moveToEdge(in: &zones, id: id, toTop: true, orderKey: Self.zoneOrderKey, category: .zones) }
+    func moveZoneToBottom(id: String, zones: inout [Zone]) { moveToEdge(in: &zones, id: id, toTop: false, orderKey: Self.zoneOrderKey, category: .zones) }
 }

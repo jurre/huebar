@@ -139,21 +139,21 @@ struct MenuBarView: View {
                                 withAnimation { bridge.client.toggleRoomPin(room.id) }
                             }
                             Divider()
-                            if let idx = bridge.client.rooms.firstIndex(where: { $0.id == room.id }), idx > 0 {
-                                Button("Move Up") {
-                                    bridge.client.moveRoom(fromId: room.id, toId: bridge.client.rooms[idx - 1].id)
-                                }
-                                Button("Move to Top") {
-                                    bridge.client.moveRoomToTop(room.id)
-                                }
+                            Button("Move Up") {
+                                guard let idx = bridge.client.rooms.firstIndex(where: { $0.id == room.id }),
+                                      idx > 0 else { return }
+                                bridge.client.moveRoom(fromId: room.id, toId: bridge.client.rooms[idx - 1].id)
                             }
-                            if let idx = bridge.client.rooms.firstIndex(where: { $0.id == room.id }), idx < bridge.client.rooms.count - 1 {
-                                Button("Move Down") {
-                                    bridge.client.moveRoom(fromId: room.id, toId: bridge.client.rooms[idx + 1].id)
-                                }
-                                Button("Move to Bottom") {
-                                    bridge.client.moveRoomToBottom(room.id)
-                                }
+                            Button("Move to Top") {
+                                bridge.client.moveRoomToTop(room.id)
+                            }
+                            Button("Move Down") {
+                                guard let idx = bridge.client.rooms.firstIndex(where: { $0.id == room.id }),
+                                      idx < bridge.client.rooms.count - 1 else { return }
+                                bridge.client.moveRoom(fromId: room.id, toId: bridge.client.rooms[idx + 1].id)
+                            }
+                            Button("Move to Bottom") {
+                                bridge.client.moveRoomToBottom(room.id)
                             }
                         }
                     }
@@ -173,21 +173,21 @@ struct MenuBarView: View {
                                 withAnimation { bridge.client.toggleZonePin(zone.id) }
                             }
                             Divider()
-                            if let idx = bridge.client.zones.firstIndex(where: { $0.id == zone.id }), idx > 0 {
-                                Button("Move Up") {
-                                    bridge.client.moveZone(fromId: zone.id, toId: bridge.client.zones[idx - 1].id)
-                                }
-                                Button("Move to Top") {
-                                    bridge.client.moveZoneToTop(zone.id)
-                                }
+                            Button("Move Up") {
+                                guard let idx = bridge.client.zones.firstIndex(where: { $0.id == zone.id }),
+                                      idx > 0 else { return }
+                                bridge.client.moveZone(fromId: zone.id, toId: bridge.client.zones[idx - 1].id)
                             }
-                            if let idx = bridge.client.zones.firstIndex(where: { $0.id == zone.id }), idx < bridge.client.zones.count - 1 {
-                                Button("Move Down") {
-                                    bridge.client.moveZone(fromId: zone.id, toId: bridge.client.zones[idx + 1].id)
-                                }
-                                Button("Move to Bottom") {
-                                    bridge.client.moveZoneToBottom(zone.id)
-                                }
+                            Button("Move to Top") {
+                                bridge.client.moveZoneToTop(zone.id)
+                            }
+                            Button("Move Down") {
+                                guard let idx = bridge.client.zones.firstIndex(where: { $0.id == zone.id }),
+                                      idx < bridge.client.zones.count - 1 else { return }
+                                bridge.client.moveZone(fromId: zone.id, toId: bridge.client.zones[idx + 1].id)
+                            }
+                            Button("Move to Bottom") {
+                                bridge.client.moveZoneToBottom(zone.id)
                             }
                         }
                     }
@@ -227,21 +227,21 @@ struct MenuBarView: View {
                                     withAnimation { client.toggleRoomPin(room.id) }
                                 }
                                 Divider()
-                                if let idx = client.rooms.firstIndex(where: { $0.id == room.id }), idx > 0 {
-                                    Button("Move Up") {
-                                        client.moveRoom(fromId: room.id, toId: client.rooms[idx - 1].id)
-                                    }
-                                    Button("Move to Top") {
-                                        client.moveRoomToTop(room.id)
-                                    }
+                                Button("Move Up") {
+                                    guard let idx = client.rooms.firstIndex(where: { $0.id == room.id }),
+                                          idx > 0 else { return }
+                                    client.moveRoom(fromId: room.id, toId: client.rooms[idx - 1].id)
                                 }
-                                if let idx = client.rooms.firstIndex(where: { $0.id == room.id }), idx < client.rooms.count - 1 {
-                                    Button("Move Down") {
-                                        client.moveRoom(fromId: room.id, toId: client.rooms[idx + 1].id)
-                                    }
-                                    Button("Move to Bottom") {
-                                        client.moveRoomToBottom(room.id)
-                                    }
+                                Button("Move to Top") {
+                                    client.moveRoomToTop(room.id)
+                                }
+                                Button("Move Down") {
+                                    guard let idx = client.rooms.firstIndex(where: { $0.id == room.id }),
+                                          idx < client.rooms.count - 1 else { return }
+                                    client.moveRoom(fromId: room.id, toId: client.rooms[idx + 1].id)
+                                }
+                                Button("Move to Bottom") {
+                                    client.moveRoomToBottom(room.id)
                                 }
                             }
                         }
@@ -259,21 +259,21 @@ struct MenuBarView: View {
                                         withAnimation { client.toggleZonePin(zone.id) }
                                     }
                                     Divider()
-                                    if let idx = client.zones.firstIndex(where: { $0.id == zone.id }), idx > 0 {
-                                        Button("Move Up") {
-                                            client.moveZone(fromId: zone.id, toId: client.zones[idx - 1].id)
-                                        }
-                                        Button("Move to Top") {
-                                            client.moveZoneToTop(zone.id)
-                                        }
+                                    Button("Move Up") {
+                                        guard let idx = client.zones.firstIndex(where: { $0.id == zone.id }),
+                                              idx > 0 else { return }
+                                        client.moveZone(fromId: zone.id, toId: client.zones[idx - 1].id)
                                     }
-                                    if let idx = client.zones.firstIndex(where: { $0.id == zone.id }), idx < client.zones.count - 1 {
-                                        Button("Move Down") {
-                                            client.moveZone(fromId: zone.id, toId: client.zones[idx + 1].id)
-                                        }
-                                        Button("Move to Bottom") {
-                                            client.moveZoneToBottom(zone.id)
-                                        }
+                                    Button("Move to Top") {
+                                        client.moveZoneToTop(zone.id)
+                                    }
+                                    Button("Move Down") {
+                                        guard let idx = client.zones.firstIndex(where: { $0.id == zone.id }),
+                                              idx < client.zones.count - 1 else { return }
+                                        client.moveZone(fromId: zone.id, toId: client.zones[idx + 1].id)
+                                    }
+                                    Button("Move to Bottom") {
+                                        client.moveZoneToBottom(zone.id)
                                     }
                                 }
                             }
