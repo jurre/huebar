@@ -75,13 +75,14 @@ struct RoomDetailView: View {
             // Header with back button and toggle
             HStack {
                 Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.semibold))
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.semibold))
+                        Text(name)
+                            .font(.headline)
+                    }
                 }
                 .buttonStyle(.borderless)
-
-                Text(name)
-                    .font(.headline)
 
                 Spacer()
 

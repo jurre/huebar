@@ -29,13 +29,14 @@ struct SettingsView: View {
             // Header
             HStack {
                 Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.semibold))
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.semibold))
+                        Text("Settings")
+                            .font(.headline)
+                    }
                 }
                 .buttonStyle(.borderless)
-
-                Text("Settings")
-                    .font(.headline)
 
                 Spacer()
             }

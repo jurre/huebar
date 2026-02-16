@@ -20,13 +20,14 @@ struct AddBridgeView: View {
             // Header
             HStack {
                 Button(action: onDone) {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.semibold))
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.semibold))
+                        Text("Add Bridge")
+                            .font(.headline)
+                    }
                 }
                 .buttonStyle(.borderless)
-
-                Text("Add Bridge")
-                    .font(.headline)
 
                 Spacer()
             }
