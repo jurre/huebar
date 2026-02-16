@@ -522,6 +522,11 @@ final class HueAPIClient {
     func moveRoom(fromId: String, toId: String) { orderManager.moveRoom(fromId: fromId, toId: toId, rooms: &rooms) }
     func moveZone(fromId: String, toId: String) { orderManager.moveZone(fromId: fromId, toId: toId, zones: &zones) }
 
+    func moveRoomToTop(_ id: String) { orderManager.moveRoomToTop(id: id, rooms: &rooms) }
+    func moveRoomToBottom(_ id: String) { orderManager.moveRoomToBottom(id: id, rooms: &rooms) }
+    func moveZoneToTop(_ id: String) { orderManager.moveZoneToTop(id: id, zones: &zones) }
+    func moveZoneToBottom(_ id: String) { orderManager.moveZoneToBottom(id: id, zones: &zones) }
+
     // MARK: - Private
 
     private func makeRequest(path: String, method: String = "GET", body: Data? = nil) throws -> URLRequest {
