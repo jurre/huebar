@@ -42,6 +42,7 @@ final class ReorderManager {
     func clearHighlights() {
         for (_, ref) in views {
             ref.view?.setHighlighted(false)
+            ref.view?.setDragSource(false)
         }
     }
 }
@@ -66,8 +67,9 @@ final class DragReorderNSView: NSView {
     private var isReordering = false
     private var isForwardingEvents = false
     private var isHighlighted = false
+    private var isDragSource = false
     private var currentTargetId: String?
-    private let dragThreshold: CGFloat = 5
+    private let dragThreshold: CGFloat = 8
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -95,6 +97,13 @@ final class DragReorderNSView: NSView {
         guard isHighlighted != highlighted else { return }
         isHighlighted = highlighted
         needsDisplay = true
+    }
+
+    func setDragSource(_ active: Bool) {
+        guard isDragSource != active else { return }
+        isDragSource = active
+        // Dim the source row to show what's being dragged
+        superview?.alphaValue = active ? 0.4 : 1.0
     }
 
     // MARK: - Mouse Event Handling
@@ -131,6 +140,7 @@ final class DragReorderNSView: NSView {
             // Vertical drag → reorder mode
             isReordering = true
             logger.info("[\(self.itemId, privacy: .public)] entering reorder mode")
+            setDragSource(true)
             NSCursor.closedHand.push()
             updateReorderTarget(event)
         } else {
@@ -148,6 +158,7 @@ final class DragReorderNSView: NSView {
 
         if isReordering {
             NSCursor.pop()
+            setDragSource(false)
             ReorderManager.shared.clearHighlights()
             if let targetId = currentTargetId {
                 logger.info("[\(self.itemId, privacy: .public)] reorder drop → \(targetId, privacy: .public)")
@@ -195,11 +206,19 @@ final class DragReorderNSView: NSView {
 
     // MARK: - Event Forwarding
 
+    /// Static guard to prevent infinite recursion when forwarding events.
+    /// Without this, window.sendEvent can dispatch back to another DragReorderNSView,
+    /// which forwards again, causing a stack overflow.
+    private static var isForwardingEvent = false
+
     /// Forward an event to the SwiftUI content by temporarily hiding this overlay.
     private func forwardEvent(_ event: NSEvent) {
+        guard !Self.isForwardingEvent else { return }
+        Self.isForwardingEvent = true
         isHidden = true
         window?.sendEvent(event)
         isHidden = false
+        Self.isForwardingEvent = false
     }
 
     private func resetState() {
