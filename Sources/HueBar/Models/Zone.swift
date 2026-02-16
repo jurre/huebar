@@ -1,6 +1,4 @@
-import CoreTransferable
 import Foundation
-import UniformTypeIdentifiers
 
 struct Zone: LightGroup {
     let id: String
@@ -13,16 +11,4 @@ struct Zone: LightGroup {
     var groupedLightId: String? {
         services.first(where: { $0.rtype == "grouped_light" })?.rid
     }
-}
-
-// MARK: - Transferable
-
-extension Zone: Transferable {
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .hueZone)
-    }
-}
-
-extension UTType {
-    static let hueZone = UTType(exportedAs: "com.huebar.zone")
 }

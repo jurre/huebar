@@ -143,10 +143,10 @@ struct MenuBarView: View {
                             }
                         }
                         .background(roomDragTarget == room.id ? dragTargetHighlight : Color.clear)
-                        .draggable(room)
-                        .dropDestination(for: Room.self) { droppedRooms, _ in
-                            guard let draggedRoom = droppedRooms.first else { return false }
-                            bridge.client.moveRoom(fromId: draggedRoom.id, toId: room.id)
+                        .draggable(room.id)
+                        .dropDestination(for: String.self) { droppedIds, _ in
+                            guard let draggedId = droppedIds.first else { return false }
+                            bridge.client.moveRoom(fromId: draggedId, toId: room.id)
                             return true
                         } isTargeted: { isTargeted in
                             roomDragTarget = isTargeted ? room.id : nil
@@ -169,10 +169,10 @@ struct MenuBarView: View {
                             }
                         }
                         .background(zoneDragTarget == zone.id ? dragTargetHighlight : Color.clear)
-                        .draggable(zone)
-                        .dropDestination(for: Zone.self) { droppedZones, _ in
-                            guard let draggedZone = droppedZones.first else { return false }
-                            bridge.client.moveZone(fromId: draggedZone.id, toId: zone.id)
+                        .draggable(zone.id)
+                        .dropDestination(for: String.self) { droppedIds, _ in
+                            guard let draggedId = droppedIds.first else { return false }
+                            bridge.client.moveZone(fromId: draggedId, toId: zone.id)
                             return true
                         } isTargeted: { isTargeted in
                             zoneDragTarget = isTargeted ? zone.id : nil
@@ -215,10 +215,10 @@ struct MenuBarView: View {
                                 withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = room }
                             }
                             .background(roomDragTarget == room.id ? dragTargetHighlight : Color.clear)
-                            .draggable(room)
-                            .dropDestination(for: Room.self) { droppedRooms, _ in
-                                guard let draggedRoom = droppedRooms.first else { return false }
-                                client.moveRoom(fromId: draggedRoom.id, toId: room.id)
+                            .draggable(room.id)
+                            .dropDestination(for: String.self) { droppedIds, _ in
+                                guard let draggedId = droppedIds.first else { return false }
+                                client.moveRoom(fromId: draggedId, toId: room.id)
                                 return true
                             } isTargeted: { isTargeted in
                                 roomDragTarget = isTargeted ? room.id : nil
@@ -239,10 +239,10 @@ struct MenuBarView: View {
                                     withAnimation(.easeInOut(duration: 0.25)) { selectedZone = zone }
                                 }
                                 .background(zoneDragTarget == zone.id ? dragTargetHighlight : Color.clear)
-                                .draggable(zone)
-                                .dropDestination(for: Zone.self) { droppedZones, _ in
-                                    guard let draggedZone = droppedZones.first else { return false }
-                                    client.moveZone(fromId: draggedZone.id, toId: zone.id)
+                                .draggable(zone.id)
+                                .dropDestination(for: String.self) { droppedIds, _ in
+                                    guard let draggedId = droppedIds.first else { return false }
+                                    client.moveZone(fromId: draggedId, toId: zone.id)
                                     return true
                                 } isTargeted: { isTargeted in
                                     zoneDragTarget = isTargeted ? zone.id : nil
