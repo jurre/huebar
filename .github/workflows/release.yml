@@ -9,6 +9,12 @@ on:
       - 'Package.swift'
       - 'Package.resolved'
 
+# When multiple pushes land in quick succession, cancel in-progress runs
+# and only release from the latest push.
+concurrency:
+  group: release
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -16,6 +22,9 @@ jobs:
   build-and-release:
     runs-on: macos-15
     steps:
+      - name: Debounce
+        run: sleep 120
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -51,11 +60,6 @@ jobs:
             echo "Will create new release with tag $TAG"
           fi
 
-      - name: Skip release (tag already exists)
-        if: steps.calc-version.outputs.skip == 'yes'
-        run: |
-          echo "Release skipped because tag '${{ steps.calc-version.outputs.tag }}' already exists."
-          echo "No build, packaging, or release steps were executed."
       - name: Skip release (tag already exists)
         if: steps.calc-version.outputs.skip == 'yes'
         run: |
