@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MenuBarView: View {
     @Bindable var bridgeManager: BridgeManager
@@ -11,8 +12,9 @@ struct MenuBarView: View {
     @State private var selectedClient: HueAPIClient?
     @State private var showSettings = false
     
-    // Drag-and-drop state: track which room/zone is being targeted for drop
-    // IDs are scoped per item type (rooms vs zones) but unique across bridges (UUIDs from Hue API)
+    // Drag-and-drop state: track the ID being dragged and which target is hovered
+    @State private var draggingRoomId: String?
+    @State private var draggingZoneId: String?
     @State private var roomDragTarget: String?
     @State private var zoneDragTarget: String?
     
@@ -143,14 +145,16 @@ struct MenuBarView: View {
                             }
                         }
                         .background(roomDragTarget == room.id ? dragTargetHighlight : Color.clear)
-                        .draggable(room.id)
-                        .dropDestination(for: String.self) { droppedIds, _ in
-                            guard let draggedId = droppedIds.first else { return false }
-                            bridge.client.moveRoom(fromId: draggedId, toId: room.id)
-                            return true
-                        } isTargeted: { isTargeted in
-                            roomDragTarget = isTargeted ? room.id : nil
+                        .onDrag {
+                            draggingRoomId = room.id
+                            return NSItemProvider(object: room.id as NSString)
                         }
+                        .onDrop(of: [.text], delegate: ReorderDropDelegate(
+                            targetId: room.id,
+                            draggingId: $draggingRoomId,
+                            dragTarget: $roomDragTarget,
+                            onMove: { fromId, toId in bridge.client.moveRoom(fromId: fromId, toId: toId) }
+                        ))
                         .contextMenu {
                             Button(bridge.client.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
                                 withAnimation { bridge.client.toggleRoomPin(room.id) }
@@ -169,14 +173,16 @@ struct MenuBarView: View {
                             }
                         }
                         .background(zoneDragTarget == zone.id ? dragTargetHighlight : Color.clear)
-                        .draggable(zone.id)
-                        .dropDestination(for: String.self) { droppedIds, _ in
-                            guard let draggedId = droppedIds.first else { return false }
-                            bridge.client.moveZone(fromId: draggedId, toId: zone.id)
-                            return true
-                        } isTargeted: { isTargeted in
-                            zoneDragTarget = isTargeted ? zone.id : nil
+                        .onDrag {
+                            draggingZoneId = zone.id
+                            return NSItemProvider(object: zone.id as NSString)
                         }
+                        .onDrop(of: [.text], delegate: ReorderDropDelegate(
+                            targetId: zone.id,
+                            draggingId: $draggingZoneId,
+                            dragTarget: $zoneDragTarget,
+                            onMove: { fromId, toId in bridge.client.moveZone(fromId: fromId, toId: toId) }
+                        ))
                         .contextMenu {
                             Button(bridge.client.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {
                                 withAnimation { bridge.client.toggleZonePin(zone.id) }
@@ -215,14 +221,16 @@ struct MenuBarView: View {
                                 withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = room }
                             }
                             .background(roomDragTarget == room.id ? dragTargetHighlight : Color.clear)
-                            .draggable(room.id)
-                            .dropDestination(for: String.self) { droppedIds, _ in
-                                guard let draggedId = droppedIds.first else { return false }
-                                client.moveRoom(fromId: draggedId, toId: room.id)
-                                return true
-                            } isTargeted: { isTargeted in
-                                roomDragTarget = isTargeted ? room.id : nil
+                            .onDrag {
+                                draggingRoomId = room.id
+                                return NSItemProvider(object: room.id as NSString)
                             }
+                            .onDrop(of: [.text], delegate: ReorderDropDelegate(
+                                targetId: room.id,
+                                draggingId: $draggingRoomId,
+                                dragTarget: $roomDragTarget,
+                                onMove: { fromId, toId in client.moveRoom(fromId: fromId, toId: toId) }
+                            ))
                             .contextMenu {
                                 Button(client.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
                                     withAnimation { client.toggleRoomPin(room.id) }
@@ -239,14 +247,16 @@ struct MenuBarView: View {
                                     withAnimation(.easeInOut(duration: 0.25)) { selectedZone = zone }
                                 }
                                 .background(zoneDragTarget == zone.id ? dragTargetHighlight : Color.clear)
-                                .draggable(zone.id)
-                                .dropDestination(for: String.self) { droppedIds, _ in
-                                    guard let draggedId = droppedIds.first else { return false }
-                                    client.moveZone(fromId: draggedId, toId: zone.id)
-                                    return true
-                                } isTargeted: { isTargeted in
-                                    zoneDragTarget = isTargeted ? zone.id : nil
+                                .onDrag {
+                                    draggingZoneId = zone.id
+                                    return NSItemProvider(object: zone.id as NSString)
                                 }
+                                .onDrop(of: [.text], delegate: ReorderDropDelegate(
+                                    targetId: zone.id,
+                                    draggingId: $draggingZoneId,
+                                    dragTarget: $zoneDragTarget,
+                                    onMove: { fromId, toId in client.moveZone(fromId: fromId, toId: toId) }
+                                ))
                                 .contextMenu {
                                     Button(client.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {
                                         withAnimation { client.toggleZonePin(zone.id) }
@@ -273,5 +283,41 @@ struct MenuBarView: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal)
             .padding(.top, 4)
+    }
+}
+
+// MARK: - Drag-and-Drop Reordering
+
+/// DropDelegate that handles in-app reordering via @State-tracked drag source ID.
+/// Uses the older onDrag/onDrop API which works more reliably in MenuBarExtra panels
+/// than the newer dropDestination(for:) API.
+struct ReorderDropDelegate: DropDelegate {
+    let targetId: String
+    @Binding var draggingId: String?
+    @Binding var dragTarget: String?
+    let onMove: (String, String) -> Void
+
+    func dropEntered(info: DropInfo) {
+        dragTarget = targetId
+    }
+
+    func dropExited(info: DropInfo) {
+        dragTarget = nil
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        draggingId != nil && draggingId != targetId
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let fromId = draggingId, fromId != targetId else { return false }
+        onMove(fromId, targetId)
+        draggingId = nil
+        dragTarget = nil
+        return true
     }
 }
