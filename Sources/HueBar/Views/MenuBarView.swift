@@ -134,9 +134,6 @@ struct MenuBarView: View {
                                 selectedRoom = room
                             }
                         }
-                        .reorderable(id: room.id) { fromId, toId in
-                            bridge.client.moveRoom(fromId: fromId, toId: toId)
-                        }
                         .contextMenu {
                             Button(bridge.client.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
                                 withAnimation { bridge.client.toggleRoomPin(room.id) }
@@ -170,9 +167,6 @@ struct MenuBarView: View {
                                 selectedClient = bridge.client
                                 selectedZone = zone
                             }
-                        }
-                        .reorderable(id: zone.id) { fromId, toId in
-                            bridge.client.moveZone(fromId: fromId, toId: toId)
                         }
                         .contextMenu {
                             Button(bridge.client.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {
@@ -228,9 +222,6 @@ struct MenuBarView: View {
                             LightRowView(apiClient: client, name: room.name, archetype: room.metadata.archetype, groupedLightId: room.groupedLightId, groupId: room.id, isPinned: client.isRoomPinned(room.id)) {
                                 withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = room }
                             }
-                            .reorderable(id: room.id) { fromId, toId in
-                                client.moveRoom(fromId: fromId, toId: toId)
-                            }
                             .contextMenu {
                                 Button(client.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
                                     withAnimation { client.toggleRoomPin(room.id) }
@@ -262,9 +253,6 @@ struct MenuBarView: View {
                             ForEach(client.zones) { zone in
                                 LightRowView(apiClient: client, name: zone.name, archetype: zone.metadata.archetype, groupedLightId: zone.groupedLightId, groupId: zone.id, isPinned: client.isZonePinned(zone.id)) {
                                     withAnimation(.easeInOut(duration: 0.25)) { selectedZone = zone }
-                                }
-                                .reorderable(id: zone.id) { fromId, toId in
-                                    client.moveZone(fromId: fromId, toId: toId)
                                 }
                                 .contextMenu {
                                     Button(client.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {
