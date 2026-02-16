@@ -138,14 +138,21 @@ struct MenuBarView: View {
                             Button(bridge.client.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
                                 withAnimation { bridge.client.toggleRoomPin(room.id) }
                             }
+                            Divider()
                             if let idx = bridge.client.rooms.firstIndex(where: { $0.id == room.id }), idx > 0 {
                                 Button("Move Up") {
                                     bridge.client.moveRoom(fromId: room.id, toId: bridge.client.rooms[idx - 1].id)
+                                }
+                                Button("Move to Top") {
+                                    bridge.client.moveRoomToTop(room.id)
                                 }
                             }
                             if let idx = bridge.client.rooms.firstIndex(where: { $0.id == room.id }), idx < bridge.client.rooms.count - 1 {
                                 Button("Move Down") {
                                     bridge.client.moveRoom(fromId: room.id, toId: bridge.client.rooms[idx + 1].id)
+                                }
+                                Button("Move to Bottom") {
+                                    bridge.client.moveRoomToBottom(room.id)
                                 }
                             }
                         }
@@ -165,14 +172,21 @@ struct MenuBarView: View {
                             Button(bridge.client.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {
                                 withAnimation { bridge.client.toggleZonePin(zone.id) }
                             }
+                            Divider()
                             if let idx = bridge.client.zones.firstIndex(where: { $0.id == zone.id }), idx > 0 {
                                 Button("Move Up") {
                                     bridge.client.moveZone(fromId: zone.id, toId: bridge.client.zones[idx - 1].id)
+                                }
+                                Button("Move to Top") {
+                                    bridge.client.moveZoneToTop(zone.id)
                                 }
                             }
                             if let idx = bridge.client.zones.firstIndex(where: { $0.id == zone.id }), idx < bridge.client.zones.count - 1 {
                                 Button("Move Down") {
                                     bridge.client.moveZone(fromId: zone.id, toId: bridge.client.zones[idx + 1].id)
+                                }
+                                Button("Move to Bottom") {
+                                    bridge.client.moveZoneToBottom(zone.id)
                                 }
                             }
                         }
@@ -212,14 +226,21 @@ struct MenuBarView: View {
                                 Button(client.isRoomPinned(room.id) ? "Unpin" : "Pin to Top") {
                                     withAnimation { client.toggleRoomPin(room.id) }
                                 }
+                                Divider()
                                 if let idx = client.rooms.firstIndex(where: { $0.id == room.id }), idx > 0 {
                                     Button("Move Up") {
                                         client.moveRoom(fromId: room.id, toId: client.rooms[idx - 1].id)
+                                    }
+                                    Button("Move to Top") {
+                                        client.moveRoomToTop(room.id)
                                     }
                                 }
                                 if let idx = client.rooms.firstIndex(where: { $0.id == room.id }), idx < client.rooms.count - 1 {
                                     Button("Move Down") {
                                         client.moveRoom(fromId: room.id, toId: client.rooms[idx + 1].id)
+                                    }
+                                    Button("Move to Bottom") {
+                                        client.moveRoomToBottom(room.id)
                                     }
                                 }
                             }
@@ -237,14 +258,21 @@ struct MenuBarView: View {
                                     Button(client.isZonePinned(zone.id) ? "Unpin" : "Pin to Top") {
                                         withAnimation { client.toggleZonePin(zone.id) }
                                     }
+                                    Divider()
                                     if let idx = client.zones.firstIndex(where: { $0.id == zone.id }), idx > 0 {
                                         Button("Move Up") {
                                             client.moveZone(fromId: zone.id, toId: client.zones[idx - 1].id)
+                                        }
+                                        Button("Move to Top") {
+                                            client.moveZoneToTop(zone.id)
                                         }
                                     }
                                     if let idx = client.zones.firstIndex(where: { $0.id == zone.id }), idx < client.zones.count - 1 {
                                         Button("Move Down") {
                                             client.moveZone(fromId: zone.id, toId: client.zones[idx + 1].id)
+                                        }
+                                        Button("Move to Bottom") {
+                                            client.moveZoneToBottom(zone.id)
                                         }
                                     }
                                 }
@@ -271,10 +299,3 @@ struct MenuBarView: View {
             .padding(.top, 4)
     }
 }
-
-// MARK: - Drag-and-Drop Reordering
-
-/// DropDelegate that handles in-app reordering via @State-tracked drag source ID.
-/// Uses the older onDrag/onDrop API which works more reliably in MenuBarExtra panels
-/// than the newer dropDestination(for:) API.
-

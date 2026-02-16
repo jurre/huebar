@@ -99,6 +99,15 @@ final class RoomOrderManager {
         defaults.set(groups.map(\.id), forKey: orderKey)
     }
 
+    func moveToEdge<T: LightGroup>(in groups: inout [T], id: String, toTop: Bool, orderKey: String) {
+        guard let fromIndex = groups.firstIndex(where: { $0.id == id }) else { return }
+        let targetIndex = toTop ? 0 : groups.count - 1
+        guard fromIndex != targetIndex else { return }
+        let item = groups.remove(at: fromIndex)
+        groups.insert(item, at: targetIndex)
+        defaults.set(groups.map(\.id), forKey: orderKey)
+    }
+
     // MARK: - Convenience wrappers
 
     var pinnedRoomIds: Set<String> { cachedPinnedRooms }
@@ -124,4 +133,9 @@ final class RoomOrderManager {
 
     func moveRoom(fromId: String, toId: String, rooms: inout [Room]) { move(in: &rooms, fromId: fromId, toId: toId, orderKey: Self.roomOrderKey) }
     func moveZone(fromId: String, toId: String, zones: inout [Zone]) { move(in: &zones, fromId: fromId, toId: toId, orderKey: Self.zoneOrderKey) }
+
+    func moveRoomToTop(id: String, rooms: inout [Room]) { moveToEdge(in: &rooms, id: id, toTop: true, orderKey: Self.roomOrderKey) }
+    func moveRoomToBottom(id: String, rooms: inout [Room]) { moveToEdge(in: &rooms, id: id, toTop: false, orderKey: Self.roomOrderKey) }
+    func moveZoneToTop(id: String, zones: inout [Zone]) { moveToEdge(in: &zones, id: id, toTop: true, orderKey: Self.zoneOrderKey) }
+    func moveZoneToBottom(id: String, zones: inout [Zone]) { moveToEdge(in: &zones, id: id, toTop: false, orderKey: Self.zoneOrderKey) }
 }
