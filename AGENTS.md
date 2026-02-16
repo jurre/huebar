@@ -107,3 +107,7 @@ swift build -c release             # release build
 ./scripts/install.sh               # build + install to /Applications
 ./scripts/mock-bridges.sh          # start mock bridges for UI testing
 ```
+
+## Pull Request Workflow
+- After addressing PR review comments, **always resolve the corresponding review threads** using the GitHub GraphQL API (`resolveReviewThread` mutation)
+- Use the thread IDs from `get_review_comments` to resolve them in bulk
