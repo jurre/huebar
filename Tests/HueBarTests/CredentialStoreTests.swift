@@ -20,38 +20,40 @@ struct CredentialStoreTests {
 
     @Test func saveAndLoad() throws {
         defer { CredentialStore.delete(); cleanLastBridgeIP() }
-        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "test-key-123"))
-        let loaded = CredentialStore.load()
-        #expect(loaded?.bridgeIP == "192.168.1.10")
-        #expect(loaded?.applicationKey == "test-key-123")
+        try CredentialStore.saveBridge(BridgeCredentials( id: "b1", bridgeIP: "192.168.1.10", applicationKey: "test-key-123", name: "Hue Bridge"))
+        let loaded = CredentialStore.loadBridges()
+        #expect(loaded.count == 1)
+        #expect(loaded[0].bridgeIP == "192.168.1.10")
+        #expect(loaded[0].applicationKey == "test-key-123")
     }
 
     @Test func loadWhenEmpty() {
         defer { CredentialStore.delete() }
         CredentialStore.delete()
-        #expect(CredentialStore.load() == nil)
+        #expect(CredentialStore.loadBridges().isEmpty)
     }
 
     @Test func delete() throws {
         defer { CredentialStore.delete(); cleanLastBridgeIP() }
-        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "key"))
+        try CredentialStore.saveBridge(BridgeCredentials(id: "b1", bridgeIP: "192.168.1.10", applicationKey: "key", name: "Hue Bridge"))
         CredentialStore.delete()
-        #expect(CredentialStore.load() == nil)
+        #expect(CredentialStore.loadBridges().isEmpty)
     }
 
     @Test func overwrite() throws {
         defer { CredentialStore.delete(); cleanLastBridgeIP() }
-        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.10", applicationKey: "first"))
-        try CredentialStore.save(credentials: .init(bridgeIP: "192.168.1.20", applicationKey: "second"))
-        let loaded = CredentialStore.load()
-        #expect(loaded?.bridgeIP == "192.168.1.20")
-        #expect(loaded?.applicationKey == "second")
+        try CredentialStore.saveBridge(BridgeCredentials(id: "same-id", bridgeIP: "192.168.1.10", applicationKey: "first", name: "Hue Bridge"))
+        try CredentialStore.saveBridge(BridgeCredentials(id: "same-id", bridgeIP: "192.168.1.20", applicationKey: "second", name: "Hue Bridge"))
+        let loaded = CredentialStore.loadBridges()
+        #expect(loaded.count == 1)
+        #expect(loaded[0].bridgeIP == "192.168.1.20")
+        #expect(loaded[0].applicationKey == "second")
     }
 
     @Test func deleteWhenNothingStored() {
         CredentialStore.delete()
         CredentialStore.delete()
-        #expect(CredentialStore.load() == nil)
+        #expect(CredentialStore.loadBridges().isEmpty)
     }
 
     // MARK: - Last Bridge IP
@@ -69,11 +71,11 @@ struct CredentialStoreTests {
             CredentialStore.delete()
             cleanLastBridgeIP()
         }
-        try CredentialStore.save(credentials: .init(bridgeIP: "10.0.0.5", applicationKey: "key-abc"))
+        try CredentialStore.saveBridge(BridgeCredentials(id: "b1", bridgeIP: "10.0.0.5", applicationKey: "key-abc", name: "Hue Bridge"))
         #expect(CredentialStore.loadLastBridgeIP() == "10.0.0.5")
 
         CredentialStore.delete()
-        #expect(CredentialStore.load() == nil)
+        #expect(CredentialStore.loadBridges().isEmpty)
         #expect(CredentialStore.loadLastBridgeIP() == "10.0.0.5")
     }
 
@@ -83,7 +85,7 @@ struct CredentialStoreTests {
             CredentialStore.delete()
             cleanLastBridgeIP()
         }
-        try CredentialStore.save(credentials: .init(bridgeIP: "172.16.0.1", applicationKey: "key-xyz"))
+        try CredentialStore.saveBridge(BridgeCredentials(id: "b1", bridgeIP: "172.16.0.1", applicationKey: "key-xyz", name: "Hue Bridge"))
         #expect(CredentialStore.loadLastBridgeIP() == "172.16.0.1")
     }
 
