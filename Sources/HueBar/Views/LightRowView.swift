@@ -67,6 +67,9 @@ struct LightRowView: View {
                     .foregroundStyle(isOn ? .white.opacity(0.6) : .white.opacity(0.2))
                 Slider(value: $sliderBrightness, in: 1...100) { editing in
                     isUserDragging = editing
+                    if !editing {
+                        commitBrightnessChange(sliderBrightness)
+                    }
                 }
                     .controlSize(.small)
                     .tint(isOn ? .white.opacity(0.8) : .white.opacity(0.15))
@@ -94,10 +97,8 @@ struct LightRowView: View {
             }
         }
         .onChange(of: sliderBrightness) { _, newValue in
-            guard isUserDragging, let id = groupedLightId else { return }
-            debounce(task: &debounceTask) {
-                try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
-            }
+            guard isUserDragging else { return }
+            commitBrightnessChange(newValue)
         }
         .onDisappear { debounceTask?.cancel() }
     }
@@ -125,8 +126,17 @@ struct LightRowView: View {
             get: { isOn },
             set: { newValue in
                 guard let id = groupedLightId else { return }
+                apiClient.previewGroupedLightOn(id: id, on: newValue)
                 Task { try? await apiClient.toggleGroupedLight(id: id, on: newValue) }
             }
         )
+    }
+
+    private func commitBrightnessChange(_ brightness: Double) {
+        guard let id = groupedLightId else { return }
+        apiClient.previewBrightness(groupedLightId: id, brightness: brightness)
+        debounce(task: &debounceTask) {
+            try? await apiClient.setBrightness(groupedLightId: id, brightness: brightness)
+        }
     }
 }

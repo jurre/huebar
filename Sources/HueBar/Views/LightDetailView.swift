@@ -32,6 +32,7 @@ struct LightDetailView: View {
             // Color wheel for full-color lights
             if light.supportsColor {
                 ColorWheelView(xy: $colorXY) { newXY in
+                    apiClient.previewLightColor(id: light.id, xy: newXY)
                     debounce(task: &colorDebounce) {
                         try? await apiClient.setLightColor(id: light.id, xy: newXY)
                     }
@@ -42,6 +43,7 @@ struct LightDetailView: View {
             // Color temperature slider for temp-only lights (not shown if full color is available)
             if !light.supportsColor && light.supportsColorTemperature {
                 ColorTemperatureSlider(mirek: $colorTempMirek) { newMirek in
+                    apiClient.previewLightColorTemperature(id: light.id, mirek: newMirek)
                     debounce(task: &tempDebounce) {
                         try? await apiClient.setLightColorTemperature(id: light.id, mirek: newMirek)
                     }
@@ -66,6 +68,7 @@ struct LightDetailView: View {
         .onAppear { syncFromLight() }
         .onChange(of: light.id) { _, _ in syncFromLight() }
         .onChange(of: sliderBrightness) { _, newValue in
+            apiClient.previewLightBrightness(id: light.id, brightness: newValue)
             debounce(task: &brightnessDebounce) {
                 try? await apiClient.setLightBrightness(id: light.id, brightness: newValue)
             }

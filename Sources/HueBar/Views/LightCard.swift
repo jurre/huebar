@@ -68,6 +68,7 @@ struct LightCard: View {
         Binding(
             get: { light.isOn },
             set: { newValue in
+                apiClient.previewLightOn(id: light.id, on: newValue)
                 Task { try? await apiClient.toggleLight(id: light.id, on: newValue) }
             }
         )
