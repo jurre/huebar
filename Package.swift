@@ -14,7 +14,10 @@ let package = Package(
         .executableTarget(
             name: "HueBar",
             path: "Sources/HueBar",
-            exclude: ["Info.plist"]
+            exclude: ["Info.plist"],
+            resources: [
+                .copy("Resources/SceneImages"),
+            ]
         ),
         .executableTarget(
             name: "HueMockBridge",

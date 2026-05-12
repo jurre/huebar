@@ -60,6 +60,10 @@ if [ -f "Resources/AppIcon.icns" ]; then
     cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 fi
 
+if [ -d "Sources/HueBar/Resources/SceneImages" ]; then
+    cp -R Sources/HueBar/Resources/SceneImages "$APP_DIR/Contents/Resources/SceneImages"
+fi
+
 cat > "$APP_DIR/Contents/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
