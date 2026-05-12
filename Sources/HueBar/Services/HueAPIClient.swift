@@ -160,7 +160,7 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            optimisticUpdates.clearLightOn(id: id)
+            optimisticUpdates.clear(.on, for: .light, id: id)
             lights = try await fetchLights()
             throw HueAPIError.invalidResponse
         }
@@ -186,7 +186,7 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            optimisticUpdates.clearLightBrightness(id: id)
+            optimisticUpdates.clear(.brightness, for: .light, id: id)
             lights = try await fetchLights()
             throw HueAPIError.invalidResponse
         }
@@ -209,7 +209,7 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            optimisticUpdates.clearLightColor(id: id)
+            optimisticUpdates.clear(.color, for: .light, id: id)
             lights = try await fetchLights()
             throw HueAPIError.invalidResponse
         }
@@ -232,7 +232,7 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            optimisticUpdates.clearLightColorTemperature(id: id)
+            optimisticUpdates.clear(.colorTemperature, for: .light, id: id)
             lights = try await fetchLights()
             throw HueAPIError.invalidResponse
         }
@@ -276,7 +276,7 @@ final class HueAPIClient {
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             // Revert on failure
-            optimisticUpdates.clearGroupedLightOn(id: id)
+            optimisticUpdates.clear(.on, for: .groupedLight, id: id)
             groupedLights = try await fetchGroupedLights()
             throw HueAPIError.invalidResponse
         }
@@ -303,7 +303,7 @@ final class HueAPIClient {
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             // Revert on failure
-            optimisticUpdates.clearGroupedLightBrightness(id: groupedLightId)
+            optimisticUpdates.clear(.brightness, for: .groupedLight, id: groupedLightId)
             groupedLights = try await fetchGroupedLights()
             throw HueAPIError.invalidResponse
         }
@@ -326,7 +326,7 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            optimisticUpdates.clearGroupedLightColorTemperature(id: id)
+            optimisticUpdates.clear(.colorTemperature, for: .groupedLight, id: id)
             groupedLights = try await fetchGroupedLights()
             throw HueAPIError.invalidResponse
         }
@@ -551,7 +551,7 @@ final class HueAPIClient {
     // MARK: - Private
 
     private func applyLightOnOptimistically(id: String, on: Bool) {
-        optimisticUpdates.recordLightOn(id: id, on: on)
+        optimisticUpdates.record(.on(on), for: .light, id: id)
         if let index = lights.firstIndex(where: { $0.id == id }) {
             lights[index].on = OnState(on: on)
         }
@@ -560,7 +560,7 @@ final class HueAPIClient {
     @discardableResult
     private func applyLightBrightnessOptimistically(id: String, brightness: Double) -> Double {
         let clamped = clampBrightness(brightness)
-        optimisticUpdates.recordLightBrightness(id: id, brightness: clamped)
+        optimisticUpdates.record(.brightness(clamped), for: .light, id: id)
         if let index = lights.firstIndex(where: { $0.id == id }) {
             lights[index].dimming = DimmingState(brightness: clamped)
         }
@@ -568,7 +568,7 @@ final class HueAPIClient {
     }
 
     private func applyLightColorOptimistically(id: String, xy: CIEXYColor) {
-        optimisticUpdates.recordLightColor(id: id, xy: xy)
+        optimisticUpdates.record(.color(xy), for: .light, id: id)
         if let index = lights.firstIndex(where: { $0.id == id }) {
             lights[index].color = LightColor(xy: xy)
         }
@@ -577,7 +577,7 @@ final class HueAPIClient {
     @discardableResult
     private func applyLightColorTemperatureOptimistically(id: String, mirek: Int) -> Int {
         let clamped = clampMirek(mirek)
-        optimisticUpdates.recordLightColorTemperature(id: id, mirek: clamped)
+        optimisticUpdates.record(.colorTemperature(clamped), for: .light, id: id)
         if let index = lights.firstIndex(where: { $0.id == id }) {
             lights[index].colorTemperature = LightColorTemperature(mirek: clamped, mirekValid: true)
         }
@@ -585,7 +585,7 @@ final class HueAPIClient {
     }
 
     private func applyGroupedLightOnOptimistically(id: String, on: Bool) {
-        optimisticUpdates.recordGroupedLightOn(id: id, on: on)
+        optimisticUpdates.record(.on(on), for: .groupedLight, id: id)
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
             groupedLights[index].on = OnState(on: on)
         }
@@ -594,7 +594,7 @@ final class HueAPIClient {
     @discardableResult
     private func applyGroupedLightBrightnessOptimistically(id: String, brightness: Double) -> Double {
         let clamped = clampBrightness(brightness)
-        optimisticUpdates.recordGroupedLightBrightness(id: id, brightness: clamped)
+        optimisticUpdates.record(.brightness(clamped), for: .groupedLight, id: id)
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
             groupedLights[index].dimming = DimmingState(brightness: clamped)
         }
@@ -604,7 +604,7 @@ final class HueAPIClient {
     @discardableResult
     private func applyGroupedLightColorTemperatureOptimistically(id: String, mirek: Int) -> Int {
         let clamped = clampMirek(mirek)
-        optimisticUpdates.recordGroupedLightColorTemperature(id: id, mirek: clamped)
+        optimisticUpdates.record(.colorTemperature(clamped), for: .groupedLight, id: id)
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
             groupedLights[index].colorTemperature = LightColorTemperature(mirek: clamped, mirekValid: true)
         }

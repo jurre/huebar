@@ -1,91 +1,57 @@
 import Foundation
 
 struct OptimisticUpdateTracker: Sendable {
-    enum ResourceKind: Sendable {
+    enum ResourceKind: Sendable, Hashable {
         case groupedLight
         case light
     }
 
+    enum Field: Sendable {
+        case on
+        case brightness
+        case color
+        case colorTemperature
+    }
+
+    enum Value: Sendable {
+        case on(Bool)
+        case brightness(Double)
+        case color(CIEXYColor)
+        case colorTemperature(Int)
+    }
+
     static let protectionWindow: TimeInterval = 3.0
 
-    private var groupedLights: [String: PendingLightUpdate] = [:]
-    private var lights: [String: PendingLightUpdate] = [:]
+    private var updates: [ResourceKey: PendingLightUpdate] = [:]
 
-    mutating func recordGroupedLightOn(id: String, on: Bool, now: Date = Date()) {
-        groupedLights[id, default: PendingLightUpdate()].on = Self.pending(on, now: now)
+    mutating func record(_ value: Value, for kind: ResourceKind, id: String, now: Date = Date()) {
+        let key = ResourceKey(kind: kind, id: id)
+        Self.record(value, in: &updates[key, default: PendingLightUpdate()], now: now)
     }
 
-    mutating func recordGroupedLightBrightness(id: String, brightness: Double, now: Date = Date()) {
-        groupedLights[id, default: PendingLightUpdate()].brightness = Self.pending(brightness, now: now)
-    }
-
-    mutating func recordGroupedLightColorTemperature(id: String, mirek: Int, now: Date = Date()) {
-        groupedLights[id, default: PendingLightUpdate()].colorTemperature = Self.pending(mirek, now: now)
-    }
-
-    mutating func recordLightOn(id: String, on: Bool, now: Date = Date()) {
-        lights[id, default: PendingLightUpdate()].on = Self.pending(on, now: now)
-    }
-
-    mutating func recordLightBrightness(id: String, brightness: Double, now: Date = Date()) {
-        lights[id, default: PendingLightUpdate()].brightness = Self.pending(brightness, now: now)
-    }
-
-    mutating func recordLightColor(id: String, xy: CIEXYColor, now: Date = Date()) {
-        lights[id, default: PendingLightUpdate()].color = Self.pending(xy, now: now)
-    }
-
-    mutating func recordLightColorTemperature(id: String, mirek: Int, now: Date = Date()) {
-        lights[id, default: PendingLightUpdate()].colorTemperature = Self.pending(mirek, now: now)
-    }
-
-    mutating func clearGroupedLightOn(id: String) {
-        Self.clear(id: id, in: &groupedLights) { $0.on = nil }
-    }
-
-    mutating func clearGroupedLightBrightness(id: String) {
-        Self.clear(id: id, in: &groupedLights) { $0.brightness = nil }
-    }
-
-    mutating func clearGroupedLightColorTemperature(id: String) {
-        Self.clear(id: id, in: &groupedLights) { $0.colorTemperature = nil }
-    }
-
-    mutating func clearLightOn(id: String) {
-        Self.clear(id: id, in: &lights) { $0.on = nil }
-    }
-
-    mutating func clearLightBrightness(id: String) {
-        Self.clear(id: id, in: &lights) { $0.brightness = nil }
-    }
-
-    mutating func clearLightColor(id: String) {
-        Self.clear(id: id, in: &lights) { $0.color = nil }
-    }
-
-    mutating func clearLightColorTemperature(id: String) {
-        Self.clear(id: id, in: &lights) { $0.colorTemperature = nil }
-    }
-
-    mutating func filter(_ event: HueEventResource, kind: ResourceKind, now: Date = Date()) -> HueEventResource {
-        switch kind {
-        case .groupedLight:
-            return Self.filter(event, pendingUpdates: &groupedLights, now: now)
-        case .light:
-            return Self.filter(event, pendingUpdates: &lights, now: now)
+    mutating func clear(_ field: Field, for kind: ResourceKind, id: String) {
+        let key = ResourceKey(kind: kind, id: id)
+        guard var pending = updates[key] else { return }
+        Self.clear(field, from: &pending)
+        if pending.isEmpty {
+            updates[key] = nil
+        } else {
+            updates[key] = pending
         }
     }
 
-    private static func pending<Value: Sendable>(_ value: Value, now: Date) -> PendingValue<Value> {
-        PendingValue(value: value, expiresAt: now.addingTimeInterval(Self.protectionWindow))
+    mutating func filter(_ event: HueEventResource, kind: ResourceKind, now: Date = Date()) -> HueEventResource {
+        let key = ResourceKey(kind: kind, id: event.id)
+        return Self.filter(event, key: key, pendingUpdates: &updates, now: now)
     }
 
     private static func filter(
         _ event: HueEventResource,
-        pendingUpdates: inout [String: PendingLightUpdate],
+        key: ResourceKey,
+        pendingUpdates: inout [ResourceKey: PendingLightUpdate],
         now: Date
     ) -> HueEventResource {
-        guard var pending = pendingUpdates[event.id] else { return event }
+        guard var pending = pendingUpdates[key] else { return event }
 
         var on = event.on
         var dimming = event.dimming
@@ -106,9 +72,9 @@ struct OptimisticUpdateTracker: Sendable {
         }
 
         if pending.isEmpty {
-            pendingUpdates[event.id] = nil
+            pendingUpdates[key] = nil
         } else {
-            pendingUpdates[event.id] = pending
+            pendingUpdates[key] = pending
         }
 
         return HueEventResource(
@@ -124,18 +90,34 @@ struct OptimisticUpdateTracker: Sendable {
         )
     }
 
-    private static func clear(
-        id: String,
-        in pendingUpdates: inout [String: PendingLightUpdate],
-        clearField: (inout PendingLightUpdate) -> Void
-    ) {
-        guard var pending = pendingUpdates[id] else { return }
-        clearField(&pending)
-        if pending.isEmpty {
-            pendingUpdates[id] = nil
-        } else {
-            pendingUpdates[id] = pending
+    private static func record(_ value: Value, in pending: inout PendingLightUpdate, now: Date) {
+        switch value {
+        case let .on(on):
+            pending.on = Self.pending(on, now: now)
+        case let .brightness(brightness):
+            pending.brightness = Self.pending(brightness, now: now)
+        case let .color(xy):
+            pending.color = Self.pending(xy, now: now)
+        case let .colorTemperature(mirek):
+            pending.colorTemperature = Self.pending(mirek, now: now)
         }
+    }
+
+    private static func clear(_ field: Field, from pending: inout PendingLightUpdate) {
+        switch field {
+        case .on:
+            pending.on = nil
+        case .brightness:
+            pending.brightness = nil
+        case .color:
+            pending.color = nil
+        case .colorTemperature:
+            pending.colorTemperature = nil
+        }
+    }
+
+    private static func pending<Value: Sendable>(_ value: Value, now: Date) -> PendingValue<Value> {
+        PendingValue(value: value, expiresAt: now.addingTimeInterval(Self.protectionWindow))
     }
 
     private static func filter<EventValue, Pending>(
@@ -166,6 +148,11 @@ struct OptimisticUpdateTracker: Sendable {
     private static func colorMatches(_ lhs: CIEXYColor, _ rhs: CIEXYColor) -> Bool {
         abs(lhs.x - rhs.x) <= 0.0001 && abs(lhs.y - rhs.y) <= 0.0001
     }
+}
+
+private struct ResourceKey: Hashable, Sendable {
+    let kind: OptimisticUpdateTracker.ResourceKind
+    let id: String
 }
 
 private struct PendingLightUpdate: Sendable {

@@ -13,7 +13,7 @@ struct OptimisticUpdateTrackerTests {
         var groupedLights = [
             GroupedLight(id: "gl-1", on: OnState(on: true), dimming: DimmingState(brightness: 40.0), colorTemperature: nil),
         ]
-        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 40.0, now: now)
+        tracker.record(.brightness(40.0), for: .groupedLight, id: "gl-1", now: now)
         let staleEvent = HueEventResource(
             id: "gl-1",
             type: "grouped_light",
@@ -41,7 +41,7 @@ struct OptimisticUpdateTrackerTests {
         var groupedLights = [
             GroupedLight(id: "gl-1", on: OnState(on: true), dimming: DimmingState(brightness: 40.0), colorTemperature: nil),
         ]
-        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 40.0, now: now)
+        tracker.record(.brightness(40.0), for: .groupedLight, id: "gl-1", now: now)
         let matchingEvent = HueEventResource(
             id: "gl-1",
             type: "grouped_light",
@@ -80,7 +80,7 @@ struct OptimisticUpdateTrackerTests {
         var groupedLights = [
             GroupedLight(id: "gl-1", on: OnState(on: true), dimming: DimmingState(brightness: 40.0), colorTemperature: nil),
         ]
-        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 40.0, now: now)
+        tracker.record(.brightness(40.0), for: .groupedLight, id: "gl-1", now: now)
         let roundedEvent = HueEventResource(
             id: "gl-1",
             type: "grouped_light",
@@ -119,8 +119,8 @@ struct OptimisticUpdateTrackerTests {
         var groupedLights = [
             GroupedLight(id: "gl-1", on: OnState(on: true), dimming: DimmingState(brightness: 70.0), colorTemperature: nil),
         ]
-        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 50.0, now: now)
-        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 70.0, now: now)
+        tracker.record(.brightness(50.0), for: .groupedLight, id: "gl-1", now: now)
+        tracker.record(.brightness(70.0), for: .groupedLight, id: "gl-1", now: now)
         let olderEvent = HueEventResource(
             id: "gl-1",
             type: "grouped_light",
@@ -159,7 +159,7 @@ struct OptimisticUpdateTrackerTests {
         var groupedLights = [
             GroupedLight(id: "gl-1", on: OnState(on: true), dimming: DimmingState(brightness: 40.0), colorTemperature: nil),
         ]
-        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 40.0, now: now)
+        tracker.record(.brightness(40.0), for: .groupedLight, id: "gl-1", now: now)
         let staleEvent = HueEventResource(
             id: "gl-1",
             type: "grouped_light",
@@ -199,7 +199,7 @@ struct OptimisticUpdateTrackerTests {
                 colorTemperature: nil
             ),
         ]
-        tracker.recordLightOn(id: "light-1", on: false, now: now)
+        tracker.record(.on(false), for: .light, id: "light-1", now: now)
         let staleEvent = HueEventResource(
             id: "light-1",
             type: "light",
