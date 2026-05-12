@@ -158,6 +158,8 @@ struct OptimisticUpdateTracker: Sendable {
     }
 
     private static func brightnessMatches(_ lhs: Double, _ rhs: Double) -> Bool {
+        // Hue stores brightness in 254 internal levels, so values can round-trip
+        // slightly off from the percentage we sent.
         abs(lhs - rhs) <= 0.5
     }
 

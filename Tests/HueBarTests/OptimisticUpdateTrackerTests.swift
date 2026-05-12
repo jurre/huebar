@@ -73,6 +73,85 @@ struct OptimisticUpdateTrackerTests {
         #expect(groupedLights[0].brightness == 65.0)
     }
 
+    @Test("Approximate grouped light brightness match confirms the pending local change")
+    func approximateGroupedLightBrightnessClearsPendingChange() throws {
+        // Arrange
+        var tracker = OptimisticUpdateTracker()
+        var groupedLights = [
+            GroupedLight(id: "gl-1", on: OnState(on: true), dimming: DimmingState(brightness: 40.0), colorTemperature: nil),
+        ]
+        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 40.0, now: now)
+        let roundedEvent = HueEventResource(
+            id: "gl-1",
+            type: "grouped_light",
+            on: nil,
+            dimming: DimmingState(brightness: 40.39),
+            color: nil,
+            colorTemperature: nil,
+            status: nil,
+            metadata: nil,
+            speed: nil
+        )
+        let laterEvent = HueEventResource(
+            id: "gl-1",
+            type: "grouped_light",
+            on: nil,
+            dimming: DimmingState(brightness: 65.0),
+            color: nil,
+            colorTemperature: nil,
+            status: nil,
+            metadata: nil,
+            speed: nil
+        )
+
+        // Act
+        EventStreamUpdater.apply(tracker.filter(roundedEvent, kind: .groupedLight, now: now), to: &groupedLights)
+        EventStreamUpdater.apply(tracker.filter(laterEvent, kind: .groupedLight, now: now), to: &groupedLights)
+
+        // Assert
+        #expect(groupedLights[0].brightness == 65.0)
+    }
+
+    @Test("Older grouped light brightness confirmation does not overwrite a newer pending value")
+    func olderGroupedLightBrightnessConfirmationIgnored() throws {
+        // Arrange
+        var tracker = OptimisticUpdateTracker()
+        var groupedLights = [
+            GroupedLight(id: "gl-1", on: OnState(on: true), dimming: DimmingState(brightness: 70.0), colorTemperature: nil),
+        ]
+        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 50.0, now: now)
+        tracker.recordGroupedLightBrightness(id: "gl-1", brightness: 70.0, now: now)
+        let olderEvent = HueEventResource(
+            id: "gl-1",
+            type: "grouped_light",
+            on: nil,
+            dimming: DimmingState(brightness: 50.0),
+            color: nil,
+            colorTemperature: nil,
+            status: nil,
+            metadata: nil,
+            speed: nil
+        )
+        let newerEvent = HueEventResource(
+            id: "gl-1",
+            type: "grouped_light",
+            on: nil,
+            dimming: DimmingState(brightness: 70.0),
+            color: nil,
+            colorTemperature: nil,
+            status: nil,
+            metadata: nil,
+            speed: nil
+        )
+
+        // Act
+        EventStreamUpdater.apply(tracker.filter(olderEvent, kind: .groupedLight, now: now), to: &groupedLights)
+        EventStreamUpdater.apply(tracker.filter(newerEvent, kind: .groupedLight, now: now), to: &groupedLights)
+
+        // Assert
+        #expect(groupedLights[0].brightness == 70.0)
+    }
+
     @Test("Expired grouped light brightness protection allows bridge state to apply")
     func expiredGroupedLightBrightnessProtectionAllowsEvent() throws {
         // Arrange
