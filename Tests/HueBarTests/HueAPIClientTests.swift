@@ -238,6 +238,106 @@ struct HueAPIClientTests {
         }
     }
 
+    @Test func pendingGroupedBrightnessIgnoresStaleSSEUntilMatchingEvent() async throws {
+        // Arrange
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000012"
+        client.groupedLights = [
+            GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 12.0), colorTemperature: nil),
+        ]
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Act
+        try await client.setBrightness(groupedLightId: validId, brightness: 40.0)
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: validId,
+                    type: "grouped_light",
+                    on: nil,
+                    dimming: DimmingState(brightness: 12.0),
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+
+        // Assert
+        #expect(client.groupedLights.first?.brightness == 40.0)
+
+        // Act
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: validId,
+                    type: "grouped_light",
+                    on: nil,
+                    dimming: DimmingState(brightness: 40.0),
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: validId,
+                    type: "grouped_light",
+                    on: nil,
+                    dimming: DimmingState(brightness: 65.0),
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+
+        // Assert
+        #expect(client.groupedLights.first?.brightness == 65.0)
+    }
+
+    @Test func previewGroupedBrightnessProtectsDebouncedChangeFromStaleSSE() {
+        // Arrange
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000013"
+        client.groupedLights = [
+            GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 12.0), colorTemperature: nil),
+        ]
+
+        // Act
+        client.previewBrightness(groupedLightId: validId, brightness: 40.0)
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: validId,
+                    type: "grouped_light",
+                    on: nil,
+                    dimming: DimmingState(brightness: 12.0),
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+
+        // Assert
+        #expect(client.groupedLights.first?.brightness == 40.0)
+    }
+
     @Test func lightsFilteredByRoom() {
         let client = makeClient()
         let room = Room(
@@ -545,6 +645,15 @@ struct HueAPIClientTests {
             dimming: DimmingState(brightness: 50),
             color: nil,
             colorTemperature: nil
+        )
+    }
+
+    private func makeUpdateEvent(resource: HueEventResource) -> HueEvent {
+        HueEvent(
+            creationtime: "2024-01-01T00:00:00Z",
+            id: UUID().uuidString,
+            type: .update,
+            data: [resource]
         )
     }
 }
