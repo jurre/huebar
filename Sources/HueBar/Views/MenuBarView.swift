@@ -13,7 +13,11 @@ struct MenuBarView: View {
 
     /// The primary bridge client (first connected bridge)
     private var primaryClient: HueAPIClient? {
-        bridgeManager.bridges.first?.client
+        primaryBridge?.client
+    }
+
+    private var primaryBridge: BridgeConnection? {
+        bridgeManager.bridges.first
     }
 
     /// Whether to show multi-bridge section headers
@@ -200,16 +204,17 @@ struct MenuBarView: View {
 
     @ViewBuilder
     private var singleBridgeContent: some View {
-        if let client = primaryClient {
-            if client.isLoading && client.rooms.isEmpty && client.zones.isEmpty {
+        if let bridge = primaryBridge {
+            let client = bridge.client
+            if shouldShowInitialLoading(for: bridge) {
                 Spacer()
                 ProgressView("Loading…")
                 Spacer()
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        if let error = client.lastError {
-                            Label(error, systemImage: "exclamationmark.triangle")
+                        if case .error(let message) = bridge.status {
+                            Label(message, systemImage: "exclamationmark.triangle")
                                 .foregroundStyle(.red)
                                 .font(.caption)
                                 .padding(.horizontal)
@@ -286,6 +291,17 @@ struct MenuBarView: View {
             Spacer()
             ProgressView("Loading…")
             Spacer()
+        }
+    }
+
+    private func shouldShowInitialLoading(for bridge: BridgeConnection) -> Bool {
+        let client = bridge.client
+        guard client.rooms.isEmpty && client.zones.isEmpty else { return false }
+        switch bridge.status {
+        case .disconnected, .connecting:
+            return true
+        case .connected, .error:
+            return client.isLoading
         }
     }
 
