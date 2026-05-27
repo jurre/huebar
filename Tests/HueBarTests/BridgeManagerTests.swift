@@ -98,6 +98,27 @@ extension CredentialStoreTests {
         context.connection.disconnect()
     }
 
+    @Test func bridgeConnectionRetryDelayDoublesThenCaps() {
+        let base = Duration.seconds(5)
+        let cap = Duration.seconds(60)
+        #expect(BridgeConnection.computeRetryDelay(attempt: 0, initial: base, maximum: cap) == .seconds(5))
+        #expect(BridgeConnection.computeRetryDelay(attempt: 1, initial: base, maximum: cap) == .seconds(10))
+        #expect(BridgeConnection.computeRetryDelay(attempt: 2, initial: base, maximum: cap) == .seconds(20))
+        #expect(BridgeConnection.computeRetryDelay(attempt: 3, initial: base, maximum: cap) == .seconds(40))
+        // 5 * 2^4 = 80s, capped to 60s.
+        #expect(BridgeConnection.computeRetryDelay(attempt: 4, initial: base, maximum: cap) == .seconds(60))
+        #expect(BridgeConnection.computeRetryDelay(attempt: 10, initial: base, maximum: cap) == .seconds(60))
+        // Defensive: huge attempt counts must not overflow.
+        #expect(BridgeConnection.computeRetryDelay(attempt: 10_000, initial: base, maximum: cap) == .seconds(60))
+        // Defensive: negative attempts collapse to the initial delay.
+        #expect(BridgeConnection.computeRetryDelay(attempt: -5, initial: base, maximum: cap) == .seconds(5))
+        // Defensive: initial >= maximum returns the cap immediately.
+        #expect(
+            BridgeConnection.computeRetryDelay(attempt: 0, initial: .seconds(120), maximum: .seconds(60))
+                == .seconds(60)
+        )
+    }
+
     private func createRetryTestContext() -> (
         connection: BridgeConnection,
         client: HueAPIClient,
@@ -138,7 +159,7 @@ extension CredentialStoreTests {
             id: "office-bridge",
             name: "Office Bridge",
             client: client,
-            retryDelay: .milliseconds(10)
+            initialRetryDelay: .milliseconds(10)
         )
 
         return (
