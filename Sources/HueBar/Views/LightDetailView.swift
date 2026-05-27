@@ -105,11 +105,21 @@ struct LightDetailView: View {
             sliderBrightness = brightness
         case .commit(let brightness):
             commitBrightnessChange(brightness)
+        case .commitImmediately(let brightness):
+            commitBrightnessChange(brightness, immediately: true)
         }
     }
 
-    private func commitBrightnessChange(_ brightness: Double) {
+    private func commitBrightnessChange(_ brightness: Double, immediately: Bool = false) {
         apiClient.previewLightBrightness(id: light.id, brightness: brightness)
+        if immediately {
+            brightnessDebounce?.cancel()
+            brightnessDebounce = Task {
+                try? await apiClient.setLightBrightness(id: light.id, brightness: brightness)
+            }
+            return
+        }
+
         debounce(task: &brightnessDebounce) {
             try? await apiClient.setLightBrightness(id: light.id, brightness: brightness)
         }

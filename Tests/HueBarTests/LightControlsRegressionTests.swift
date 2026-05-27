@@ -29,6 +29,6 @@ struct LightControlsRegressionTests {
         var interaction = BrightnessSliderInteraction()
 
         #expect(interaction.editingChanged(true, currentBrightness: 40) == .none)
-        #expect(interaction.editingChanged(false, currentBrightness: 64) == .commit(64))
+        #expect(interaction.editingChanged(false, currentBrightness: 64) == .commitImmediately(64))
     }
 }

@@ -106,7 +106,7 @@ struct RoomDetailView: View {
                         Slider(value: $sliderBrightness, in: 1...100) { editing in
                             isUserDraggingBrightness = editing
                             if !editing {
-                                commitBrightnessChange(sliderBrightness)
+                                commitBrightnessChange(sliderBrightness, immediately: true)
                             }
                         }
                             .controlSize(.small)
@@ -273,9 +273,17 @@ struct RoomDetailView: View {
         )
     }
 
-    private func commitBrightnessChange(_ brightness: Double) {
+    private func commitBrightnessChange(_ brightness: Double, immediately: Bool = false) {
         guard let id = groupedLightId else { return }
         apiClient.previewBrightness(groupedLightId: id, brightness: brightness)
+        if immediately {
+            debounceTask?.cancel()
+            debounceTask = Task {
+                try? await apiClient.setBrightness(groupedLightId: id, brightness: brightness)
+            }
+            return
+        }
+
         debounce(task: &debounceTask) {
             try? await apiClient.setBrightness(groupedLightId: id, brightness: brightness)
         }
