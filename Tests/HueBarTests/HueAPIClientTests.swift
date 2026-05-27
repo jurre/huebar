@@ -26,6 +26,27 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
+private final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+
+    func set(_ newValue: Value) {
+        lock.lock()
+        value = newValue
+        lock.unlock()
+    }
+
+    func get() -> Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
 @MainActor
 private func makeClient() -> HueAPIClient {
     let config = URLSessionConfiguration.ephemeral
@@ -135,6 +156,7 @@ struct HueAPIClientTests {
         client.groupedLights = [
             GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 80.0), colorTemperature: nil),
         ]
+        let observedStateBeforeResponse = LockedValue<Bool?>(nil)
 
         MockURLProtocol.requestHandler = { request in
             #expect(request.httpMethod == "PUT")
@@ -152,11 +174,18 @@ struct HueAPIClientTests {
                let onDict = body["on"] as? [String: Bool] {
                 #expect(onDict["on"] == false)
             }
+            let stateWasRead = DispatchSemaphore(value: 0)
+            Task { @MainActor in
+                observedStateBeforeResponse.set(client.groupedLights.first?.isOn)
+                stateWasRead.signal()
+            }
+            #expect(stateWasRead.wait(timeout: .now() + 2) == .success)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
 
         try await client.toggleGroupedLight(id: validId, on: false)
+        #expect(observedStateBeforeResponse.get() == false)
         #expect(client.groupedLights.first?.isOn == false)
     }
 
@@ -397,15 +426,23 @@ struct HueAPIClientTests {
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000001"
         client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
+        let observedStateBeforeResponse = LockedValue<Bool?>(nil)
 
         MockURLProtocol.requestHandler = { request in
             #expect(request.httpMethod == "PUT")
             #expect(request.url?.absoluteString.contains("/clip/v2/resource/light/\(validId)") == true)
+            let stateWasRead = DispatchSemaphore(value: 0)
+            Task { @MainActor in
+                observedStateBeforeResponse.set(client.lights.first?.isOn)
+                stateWasRead.signal()
+            }
+            #expect(stateWasRead.wait(timeout: .now() + 2) == .success)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
 
         try await client.toggleLight(id: validId, on: false)
+        #expect(observedStateBeforeResponse.get() == false)
         #expect(client.lights.first?.isOn == false)
     }
 
