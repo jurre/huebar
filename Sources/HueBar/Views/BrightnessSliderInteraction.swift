@@ -2,6 +2,7 @@ enum BrightnessSliderAction: Equatable {
     case none
     case updateSlider(Double)
     case commit(Double)
+    case commitImmediately(Double)
 }
 
 struct BrightnessSliderInteraction {
@@ -9,7 +10,7 @@ struct BrightnessSliderInteraction {
 
     mutating func editingChanged(_ editing: Bool, currentBrightness: Double) -> BrightnessSliderAction {
         isEditing = editing
-        return editing ? .none : .commit(currentBrightness)
+        return editing ? .none : .commitImmediately(currentBrightness)
     }
 
     func bridgeBrightnessChanged(_ brightness: Double) -> BrightnessSliderAction {
