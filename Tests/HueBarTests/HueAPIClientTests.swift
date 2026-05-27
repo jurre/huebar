@@ -26,6 +26,27 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
+private final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+
+    func set(_ newValue: Value) {
+        lock.lock()
+        value = newValue
+        lock.unlock()
+    }
+
+    func get() -> Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
 @MainActor
 private func makeClient() -> HueAPIClient {
     let config = URLSessionConfiguration.ephemeral
@@ -135,6 +156,7 @@ struct HueAPIClientTests {
         client.groupedLights = [
             GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 80.0), colorTemperature: nil),
         ]
+        let observedStateBeforeResponse = LockedValue<Bool?>(nil)
 
         MockURLProtocol.requestHandler = { request in
             #expect(request.httpMethod == "PUT")
@@ -152,11 +174,18 @@ struct HueAPIClientTests {
                let onDict = body["on"] as? [String: Bool] {
                 #expect(onDict["on"] == false)
             }
+            let stateWasRead = DispatchSemaphore(value: 0)
+            Task { @MainActor in
+                observedStateBeforeResponse.set(client.groupedLights.first?.isOn)
+                stateWasRead.signal()
+            }
+            #expect(stateWasRead.wait(timeout: .now() + 2) == .success)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
 
         try await client.toggleGroupedLight(id: validId, on: false)
+        #expect(observedStateBeforeResponse.get() == false)
         #expect(client.groupedLights.first?.isOn == false)
     }
 
@@ -238,6 +267,106 @@ struct HueAPIClientTests {
         }
     }
 
+    @Test func pendingGroupedBrightnessIgnoresStaleSSEUntilMatchingEvent() async throws {
+        // Arrange
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000012"
+        client.groupedLights = [
+            GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 12.0), colorTemperature: nil),
+        ]
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Act
+        try await client.setBrightness(groupedLightId: validId, brightness: 40.0)
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: validId,
+                    type: "grouped_light",
+                    on: nil,
+                    dimming: DimmingState(brightness: 12.0),
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+
+        // Assert
+        #expect(client.groupedLights.first?.brightness == 40.0)
+
+        // Act
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: validId,
+                    type: "grouped_light",
+                    on: nil,
+                    dimming: DimmingState(brightness: 40.0),
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: validId,
+                    type: "grouped_light",
+                    on: nil,
+                    dimming: DimmingState(brightness: 65.0),
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+
+        // Assert
+        #expect(client.groupedLights.first?.brightness == 65.0)
+    }
+
+    @Test func previewGroupedBrightnessProtectsDebouncedChangeFromStaleSSE() {
+        // Arrange
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000013"
+        client.groupedLights = [
+            GroupedLight(id: validId, on: OnState(on: true), dimming: DimmingState(brightness: 12.0), colorTemperature: nil),
+        ]
+
+        // Act
+        client.previewBrightness(groupedLightId: validId, brightness: 40.0)
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: validId,
+                    type: "grouped_light",
+                    on: nil,
+                    dimming: DimmingState(brightness: 12.0),
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+
+        // Assert
+        #expect(client.groupedLights.first?.brightness == 40.0)
+    }
+
     @Test func lightsFilteredByRoom() {
         let client = makeClient()
         let room = Room(
@@ -297,15 +426,23 @@ struct HueAPIClientTests {
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000001"
         client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
+        let observedStateBeforeResponse = LockedValue<Bool?>(nil)
 
         MockURLProtocol.requestHandler = { request in
             #expect(request.httpMethod == "PUT")
             #expect(request.url?.absoluteString.contains("/clip/v2/resource/light/\(validId)") == true)
+            let stateWasRead = DispatchSemaphore(value: 0)
+            Task { @MainActor in
+                observedStateBeforeResponse.set(client.lights.first?.isOn)
+                stateWasRead.signal()
+            }
+            #expect(stateWasRead.wait(timeout: .now() + 2) == .success)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
 
         try await client.toggleLight(id: validId, on: false)
+        #expect(observedStateBeforeResponse.get() == false)
         #expect(client.lights.first?.isOn == false)
     }
 
@@ -545,6 +682,15 @@ struct HueAPIClientTests {
             dimming: DimmingState(brightness: 50),
             color: nil,
             colorTemperature: nil
+        )
+    }
+
+    private func makeUpdateEvent(resource: HueEventResource) -> HueEvent {
+        HueEvent(
+            creationtime: "2024-01-01T00:00:00Z",
+            id: UUID().uuidString,
+            type: .update,
+            data: [resource]
         )
     }
 }

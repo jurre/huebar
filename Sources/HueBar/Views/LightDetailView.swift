@@ -11,6 +11,7 @@ struct LightDetailView: View {
     @State private var brightnessDebounce: Task<Void, Never>?
     @State private var colorDebounce: Task<Void, Never>?
     @State private var tempDebounce: Task<Void, Never>?
+    @State private var brightnessInteraction = BrightnessSliderInteraction()
 
     var body: some View {
         VStack(spacing: 12) {
@@ -32,6 +33,7 @@ struct LightDetailView: View {
             // Color wheel for full-color lights
             if light.supportsColor {
                 ColorWheelView(xy: $colorXY) { newXY in
+                    apiClient.previewLightColor(id: light.id, xy: newXY)
                     debounce(task: &colorDebounce) {
                         try? await apiClient.setLightColor(id: light.id, xy: newXY)
                     }
@@ -42,6 +44,7 @@ struct LightDetailView: View {
             // Color temperature slider for temp-only lights (not shown if full color is available)
             if !light.supportsColor && light.supportsColorTemperature {
                 ColorTemperatureSlider(mirek: $colorTempMirek) { newMirek in
+                    apiClient.previewLightColorTemperature(id: light.id, mirek: newMirek)
                     debounce(task: &tempDebounce) {
                         try? await apiClient.setLightColorTemperature(id: light.id, mirek: newMirek)
                     }
@@ -54,9 +57,15 @@ struct LightDetailView: View {
                     Image(systemName: "sun.min")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Slider(value: $sliderBrightness, in: 1...100)
+                    Slider(value: $sliderBrightness, in: 1...100) { editing in
+                        handleBrightnessAction(
+                            brightnessInteraction.editingChanged(editing, currentBrightness: sliderBrightness)
+                        )
+                    }
                         .controlSize(.small)
                         .tint(.hueAccent)
+                        .accessibilityLabel("\(light.name) brightness")
+                        .accessibilityValue("\(Int(sliderBrightness))%")
                     Image(systemName: "sun.max.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -65,10 +74,11 @@ struct LightDetailView: View {
         }
         .onAppear { syncFromLight() }
         .onChange(of: light.id) { _, _ in syncFromLight() }
+        .onChange(of: light.brightness) { _, newValue in
+            handleBrightnessAction(brightnessInteraction.bridgeBrightnessChanged(newValue))
+        }
         .onChange(of: sliderBrightness) { _, newValue in
-            debounce(task: &brightnessDebounce) {
-                try? await apiClient.setLightBrightness(id: light.id, brightness: newValue)
-            }
+            handleBrightnessAction(brightnessInteraction.sliderBrightnessChanged(newValue))
         }
         .onDisappear {
             brightnessDebounce?.cancel()
@@ -78,12 +88,30 @@ struct LightDetailView: View {
     }
 
     private func syncFromLight() {
-        sliderBrightness = max(light.brightness, 1)
+        sliderBrightness = BrightnessSliderInteraction.sliderValue(for: light.brightness)
         if let xy = light.color?.xy {
             colorXY = xy
         }
         if let mirek = light.colorTemperature?.mirek {
             colorTempMirek = mirek
+        }
+    }
+
+    private func handleBrightnessAction(_ action: BrightnessSliderAction) {
+        switch action {
+        case .none:
+            break
+        case .updateSlider(let brightness):
+            sliderBrightness = brightness
+        case .commit(let brightness):
+            commitBrightnessChange(brightness)
+        }
+    }
+
+    private func commitBrightnessChange(_ brightness: Double) {
+        apiClient.previewLightBrightness(id: light.id, brightness: brightness)
+        debounce(task: &brightnessDebounce) {
+            try? await apiClient.setLightBrightness(id: light.id, brightness: brightness)
         }
     }
 }
