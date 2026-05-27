@@ -140,11 +140,6 @@ final class HueAPIClient {
         try await fetch(path: "light")
     }
 
-    func previewLightOn(id: String, on: Bool) {
-        guard Self.isValidResourceId(id) else { return }
-        applyLightOnOptimistically(id: id, on: on)
-    }
-
     /// Toggle an individual light on/off
     func toggleLight(id: String, on: Bool) async throws {
         guard Self.isValidResourceId(id) else {
@@ -253,11 +248,6 @@ final class HueAPIClient {
     /// Validate that a resource ID matches the expected Hue API UUID format
     private static func isValidResourceId(_ id: String) -> Bool {
         UUID(uuidString: id) != nil
-    }
-
-    func previewGroupedLightOn(id: String, on: Bool) {
-        guard Self.isValidResourceId(id) else { return }
-        applyGroupedLightOnOptimistically(id: id, on: on)
     }
 
     /// Toggle a grouped light on/off

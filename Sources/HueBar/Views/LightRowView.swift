@@ -126,7 +126,6 @@ struct LightRowView: View {
             get: { isOn },
             set: { newValue in
                 guard let id = groupedLightId else { return }
-                apiClient.previewGroupedLightOn(id: id, on: newValue)
                 Task { try? await apiClient.toggleGroupedLight(id: id, on: newValue) }
             }
         )
