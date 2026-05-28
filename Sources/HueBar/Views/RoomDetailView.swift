@@ -105,6 +105,9 @@ struct RoomDetailView: View {
                             .foregroundStyle(.secondary)
                         Slider(value: $sliderBrightness, in: 1...100) { editing in
                             isUserDraggingBrightness = editing
+                            if !editing {
+                                commitBrightnessChange(sliderBrightness, immediately: true)
+                            }
                         }
                             .controlSize(.small)
                             .tint(.hueAccent)
@@ -124,6 +127,7 @@ struct RoomDetailView: View {
                                 .frame(width: 12)
                             ColorTemperatureSlider(mirek: $sliderMirek) { newMirek in
                                 guard let id = groupedLightId else { return }
+                                apiClient.previewGroupedLightColorTemperature(id: id, mirek: newMirek)
                                 debounce(task: &colorTempDebounceTask) {
                                     try? await apiClient.setGroupedLightColorTemperature(id: id, mirek: newMirek)
                                 }
@@ -242,10 +246,8 @@ struct RoomDetailView: View {
             }
         }
         .onChange(of: sliderBrightness) { _, newValue in
-            guard isUserDraggingBrightness, let id = groupedLightId else { return }
-            debounce(task: &debounceTask) {
-                try? await apiClient.setBrightness(groupedLightId: id, brightness: newValue)
-            }
+            guard isUserDraggingBrightness else { return }
+            commitBrightnessChange(newValue)
         }
         .onChange(of: sliderSpeed) { _, newValue in
             guard isUserDraggingSpeed, let sceneId = activeSceneForGroup?.id else { return }
@@ -269,5 +271,21 @@ struct RoomDetailView: View {
                 Task { try? await apiClient.toggleGroupedLight(id: id, on: newValue) }
             }
         )
+    }
+
+    private func commitBrightnessChange(_ brightness: Double, immediately: Bool = false) {
+        guard let id = groupedLightId else { return }
+        apiClient.previewBrightness(groupedLightId: id, brightness: brightness)
+        if immediately {
+            debounceTask?.cancel()
+            debounceTask = Task {
+                try? await apiClient.setBrightness(groupedLightId: id, brightness: brightness)
+            }
+            return
+        }
+
+        debounce(task: &debounceTask) {
+            try? await apiClient.setBrightness(groupedLightId: id, brightness: brightness)
+        }
     }
 }
