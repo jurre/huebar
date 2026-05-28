@@ -21,7 +21,7 @@ extension HueScene {
 
 extension HueAPIClient {
     /// Convenience for views: converts raw palette entries to SwiftUI Colors.
-    func activeSceneColors(for groupId: String?) -> [Color] {
-        activeScenePaletteEntries(for: groupId).map(\.color)
+    func previewColors(for groupId: String?) -> [Color] {
+        previewPaletteEntries(for: groupId).map(\.color)
     }
 }

@@ -106,7 +106,7 @@ struct LightRowView: View {
         guard isOn else {
             return AnyShapeStyle(Color.hueCardOff)
         }
-        let colors = apiClient.activeSceneColors(for: groupId)
+        let colors = apiClient.previewColors(for: groupId)
         if colors.count >= 2 {
             return AnyShapeStyle(
                 LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
