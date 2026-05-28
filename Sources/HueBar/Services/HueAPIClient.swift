@@ -452,9 +452,9 @@ final class HueAPIClient {
         eventStreamConnection = connection
 
         let stream = connection.start()
-        eventConsumingTask = Task {
-            for await events in stream {
-                applyEvents(events)
+        eventConsumingTask = Task { [weak self] in
+            for await message in stream {
+                await self?.handleEventStreamMessage(message)
             }
         }
     }
@@ -468,7 +468,16 @@ final class HueAPIClient {
         refreshDebounceTask = nil
     }
 
-    private func applyEvents(_ events: [HueEvent]) {
+    private func handleEventStreamMessage(_ message: EventStreamMessage) async {
+        switch message {
+        case .reconnected:
+            await fetchAll()
+        case .events(let events):
+            applyEvents(events)
+        }
+    }
+
+    func applyEvents(_ events: [HueEvent]) {
         for event in events {
             switch event.type {
             case .update:
@@ -478,6 +487,7 @@ final class HueAPIClient {
                         EventStreamUpdater.apply(resource, to: &groupedLights)
                     case "light":
                         EventStreamUpdater.apply(resource, to: &lights)
+                        syncGroupedLightOnState(containingLightId: resource.id)
                     case "scene":
                         if let status = resource.status?.active,
                            let resourceStatus = resource.status {
@@ -506,6 +516,41 @@ final class HueAPIClient {
                 }
             }
         }
+    }
+
+    private func syncGroupedLightOnState(containingLightId lightId: String) {
+        let affectedGroupedLightIds = groupedLightIds(containingLightId: lightId)
+        for groupedLightId in affectedGroupedLightIds {
+            guard let index = groupedLights.firstIndex(where: { $0.id == groupedLightId }) else { continue }
+            let memberLights = lights(inGroupedLight: groupedLightId)
+            guard !memberLights.isEmpty else { continue }
+            groupedLights[index].on = OnState(on: memberLights.contains(where: \.isOn))
+        }
+    }
+
+    private func groupedLightIds(containingLightId lightId: String) -> Set<String> {
+        var groupedLightIds = Set<String>()
+        for room in rooms where lights(forRoom: room).contains(where: { $0.id == lightId }) {
+            if let groupedLightId = room.groupedLightId {
+                groupedLightIds.insert(groupedLightId)
+            }
+        }
+        for zone in zones where lights(forZone: zone).contains(where: { $0.id == lightId }) {
+            if let groupedLightId = zone.groupedLightId {
+                groupedLightIds.insert(groupedLightId)
+            }
+        }
+        return groupedLightIds
+    }
+
+    private func lights(inGroupedLight groupedLightId: String) -> [HueLight] {
+        if let room = rooms.first(where: { $0.groupedLightId == groupedLightId }) {
+            return lights(forRoom: room)
+        }
+        if let zone = zones.first(where: { $0.groupedLightId == groupedLightId }) {
+            return lights(forZone: zone)
+        }
+        return []
     }
 
     // MARK: - Pinning & Ordering (forwarded to RoomOrderManager)
