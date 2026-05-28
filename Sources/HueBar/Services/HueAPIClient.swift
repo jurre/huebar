@@ -148,6 +148,9 @@ final class HueAPIClient {
         // Optimistic update
         if let index = lights.firstIndex(where: { $0.id == id }) {
             lights[index].on = OnState(on: on)
+            if !on, lights[index].dimming != nil {
+                lights[index].dimming = DimmingState(brightness: 0)
+            }
         }
 
         let request = try makeRequest(
@@ -255,6 +258,9 @@ final class HueAPIClient {
         // Optimistically update local state so the toggle reflects immediately
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
             groupedLights[index].on = OnState(on: on)
+            if !on, groupedLights[index].dimming != nil {
+                groupedLights[index].dimming = DimmingState(brightness: 0)
+            }
         }
 
         let request = try makeRequest(
