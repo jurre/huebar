@@ -169,7 +169,7 @@ struct HueAPIClientTests {
         ]
 
         // Act
-        client.applyEventsForTesting([
+        client.applyEvents([
             makeUpdateEvent(resources: [
                 HueEventResource(
                     id: lightId,

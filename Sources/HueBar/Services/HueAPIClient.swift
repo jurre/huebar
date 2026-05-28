@@ -468,10 +468,6 @@ final class HueAPIClient {
         refreshDebounceTask = nil
     }
 
-    func applyEventsForTesting(_ events: [HueEvent]) {
-        applyEvents(events)
-    }
-
     private func handleEventStreamMessage(_ message: EventStreamMessage) async {
         switch message {
         case .reconnected:
@@ -481,7 +477,7 @@ final class HueAPIClient {
         }
     }
 
-    private func applyEvents(_ events: [HueEvent]) {
+    func applyEvents(_ events: [HueEvent]) {
         for event in events {
             switch event.type {
             case .update:
