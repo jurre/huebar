@@ -20,6 +20,9 @@ enum HueAPIError: Error, LocalizedError {
 @Observable
 @MainActor
 final class HueAPIClient {
+    /// Warm-white fallback for on, dimmable lights that do not report color temperature.
+    private static let defaultWarmWhiteMirek = 370
+
     var rooms: [Room] = []
     var zones: [Zone] = []
     var groupedLights: [GroupedLight] = []
@@ -347,17 +350,43 @@ final class HueAPIClient {
     }
 
     /// Get the raw palette entries for a room/zone card.
-    /// Prefers the active scene, falls back to the first scene with palette entries.
-    func activeScenePaletteEntries(for groupId: String?) -> [ScenePaletteEntry] {
+    /// Prefers current on-light state, falls back only to a known active scene.
+    func previewPaletteEntries(for groupId: String?) -> [ScenePaletteEntry] {
         guard let groupId else { return [] }
-        // Use active scene if we know it
+        let currentEntries = currentLightPaletteEntries(for: groupId)
+        if !currentEntries.isEmpty {
+            return currentEntries
+        }
+
         if let active = activeScene(for: groupId), !active.paletteEntries.isEmpty {
             return active.paletteEntries
         }
-        // Fall back: use the first scene for this group that has palette entries
-        let groupScenes = scenes.filter { $0.group.rid == groupId }
-        if let withPalette = groupScenes.first(where: { !$0.paletteEntries.isEmpty }) {
-            return withPalette.paletteEntries
+
+        return []
+    }
+
+    private func currentLightPaletteEntries(for groupId: String) -> [ScenePaletteEntry] {
+        lights(forGroupId: groupId).compactMap { light in
+            guard light.isOn else { return nil }
+            if let xy = light.color?.xy {
+                return .xy(xy, brightness: light.dimming?.brightness)
+            }
+            if let mirek = light.colorTemperature?.mirek {
+                return .colorTemperature(mirek: mirek, brightness: light.dimming?.brightness)
+            }
+            if light.dimming != nil {
+                return .colorTemperature(mirek: Self.defaultWarmWhiteMirek, brightness: light.dimming?.brightness)
+            }
+            return nil
+        }
+    }
+
+    private func lights(forGroupId groupId: String) -> [HueLight] {
+        if let room = rooms.first(where: { $0.id == groupId }) {
+            return lights(forRoom: room)
+        }
+        if let zone = zones.first(where: { $0.id == groupId }) {
+            return lights(forZone: zone)
         }
         return []
     }
