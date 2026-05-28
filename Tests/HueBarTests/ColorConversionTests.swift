@@ -62,6 +62,34 @@ struct ColorConversionTests {
         #expect(hsb.brightness > 0.8, "Cool mirek should be bright")
     }
 
+    @Test("swiftUIColor reflects preview brightness")
+    func swiftUIColorReflectsPreviewBrightness() {
+        // Arrange
+        let warm = CIEXYColor(x: 0.4595, y: 0.4105)
+
+        // Act
+        let dim = extractHSB(from: warm.swiftUIColor(brightness: 5))
+        let bright = extractHSB(from: warm.swiftUIColor(brightness: 100))
+
+        // Assert
+        #expect(dim.brightness < bright.brightness)
+        #expect(dim.brightness > 0.25)
+    }
+
+    @Test("colorFromMirek reflects preview brightness")
+    func colorFromMirekReflectsPreviewBrightness() {
+        // Arrange
+        let mirek = 370
+
+        // Act
+        let dim = extractHSB(from: CIEXYColor.colorFromMirek(mirek, brightness: 5))
+        let bright = extractHSB(from: CIEXYColor.colorFromMirek(mirek, brightness: 100))
+
+        // Assert
+        #expect(dim.brightness < bright.brightness)
+        #expect(dim.brightness > 0.25)
+    }
+
     // MARK: - displayColor()
 
     @Test("displayColor returns a valid color for a known CIE point")
