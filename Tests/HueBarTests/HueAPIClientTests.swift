@@ -524,6 +524,52 @@ struct HueAPIClientTests {
         #expect(client.scenes.first?.speed == 0.0)
     }
 
+    @Test func setSceneSpeedReRecallsActiveDynamicScene() async throws {
+        let client = makeClient()
+        let sceneId = "00000000-0000-0000-0000-000000000012"
+        client.scenes = [
+            makeScene(id: sceneId, name: "Dynamic", groupId: "room-1", status: .dynamicPalette, speed: 0.5)
+        ]
+
+        var sceneRequests: [[String: Any]] = []
+        MockURLProtocol.requestHandler = { request in
+            if request.url?.absoluteString.contains("/resource/scene/\(sceneId)") == true {
+                sceneRequests.append(self.jsonBody(from: request))
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        try await client.setSceneSpeed(id: sceneId, speed: 0.7)
+
+        #expect(sceneRequests.count == 2)
+        #expect(sceneRequests[0]["speed"] as? Double == 0.7)
+        let recall = sceneRequests.dropFirst().first?["recall"] as? [String: String]
+        #expect(recall?["action"] == "dynamic_palette")
+    }
+
+    @Test func setSceneSpeedDoesNotRecallInactiveScene() async throws {
+        let client = makeClient()
+        let sceneId = "00000000-0000-0000-0000-000000000013"
+        client.scenes = [
+            makeScene(id: sceneId, name: "Dynamic", groupId: "room-1", status: .inactive, speed: 0.5)
+        ]
+
+        var sceneRequests: [[String: Any]] = []
+        MockURLProtocol.requestHandler = { request in
+            if request.url?.absoluteString.contains("/resource/scene/\(sceneId)") == true {
+                sceneRequests.append(self.jsonBody(from: request))
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        try await client.setSceneSpeed(id: sceneId, speed: 0.7)
+
+        #expect(sceneRequests.count == 1)
+        #expect(sceneRequests[0]["speed"] as? Double == 0.7)
+    }
+
     @Test func isActiveSceneDynamicReturnsCorrectValues() {
         let client = makeClient()
         client.scenes = [
@@ -534,6 +580,26 @@ struct HueAPIClientTests {
         #expect(client.isActiveSceneDynamic(for: "room-1") == false)
         #expect(client.isActiveSceneDynamic(for: "room-2") == true)
         #expect(client.isActiveSceneDynamic(for: nil) == false)
+    }
+
+    private func jsonBody(from request: URLRequest) -> [String: Any] {
+        var bodyData = request.httpBody
+        if bodyData == nil, let stream = request.httpBodyStream {
+            stream.open()
+            let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1024)
+            defer {
+                buffer.deallocate()
+                stream.close()
+            }
+            let read = stream.read(buffer, maxLength: 1024)
+            if read > 0 { bodyData = Data(bytes: buffer, count: read) }
+        }
+        guard let bodyData,
+              let body = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
+        else {
+            return [:]
+        }
+        return body
     }
 
     private func makeLight(id: String, name: String, ownerRid: String) -> HueLight {
