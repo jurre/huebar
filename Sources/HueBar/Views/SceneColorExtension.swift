@@ -6,7 +6,7 @@ extension ScenePaletteEntry {
         switch self {
         case .xy(let xy, let brightness):
             return xy.swiftUIColor(brightness: brightness)
-        case .colorTemperature(let mirek):
+        case .colorTemperature(let mirek, _):
             return CIEXYColor.colorFromMirek(mirek)
         }
     }

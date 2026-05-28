@@ -20,6 +20,9 @@ enum HueAPIError: Error, LocalizedError {
 @Observable
 @MainActor
 final class HueAPIClient {
+    /// Warm-white fallback for on, dimmable lights that do not report color temperature.
+    private static let defaultWarmWhiteMirek = 370
+
     var rooms: [Room] = []
     var zones: [Zone] = []
     var groupedLights: [GroupedLight] = []
@@ -369,10 +372,10 @@ final class HueAPIClient {
                 return .xy(xy, brightness: light.dimming?.brightness)
             }
             if let mirek = light.colorTemperature?.mirek {
-                return .colorTemperature(mirek: mirek)
+                return .colorTemperature(mirek: mirek, brightness: light.dimming?.brightness)
             }
             if light.dimming != nil {
-                return .colorTemperature(mirek: 370)
+                return .colorTemperature(mirek: Self.defaultWarmWhiteMirek, brightness: light.dimming?.brightness)
             }
             return nil
         }

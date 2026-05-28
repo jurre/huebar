@@ -419,19 +419,27 @@ struct HueAPIClientTests {
         )
     }
 
-    private func makeTemperaturePalette(_ mireks: [Int]) -> HueScenePalette {
+    private struct TemperatureStop: Equatable {
+        let mirek: Int
+        let brightness: Double?
+    }
+
+    private func makeTemperaturePalette(_ mireks: [Int], brightness: Double? = nil) -> HueScenePalette {
         HueScenePalette(
             color: [],
             dimming: [],
             colorTemperature: mireks.map {
-                HueScenePaletteColorTemp(colorTemperature: HueColorTemperature(mirek: $0), dimming: nil)
+                HueScenePaletteColorTemp(
+                    colorTemperature: HueColorTemperature(mirek: $0),
+                    dimming: brightness.map { HueScenePaletteDimming(brightness: $0) }
+                )
             }
         )
     }
 
     private func mireks(in entries: [ScenePaletteEntry]) -> [Int] {
         entries.compactMap { entry in
-            if case .colorTemperature(let mirek) = entry {
+            if case .colorTemperature(let mirek, _) = entry {
                 return mirek
             }
             return nil
@@ -445,6 +453,15 @@ struct HueAPIClientTests {
             }
             return false
         }.count
+    }
+
+    private func temperatureStops(in entries: [ScenePaletteEntry]) -> [TemperatureStop] {
+        entries.compactMap { entry in
+            if case .colorTemperature(let mirek, let brightness) = entry {
+                return TemperatureStop(mirek: mirek, brightness: brightness)
+            }
+            return nil
+        }
     }
 
     @Test func activeSceneReturnsStaticScene() {
@@ -534,6 +551,37 @@ struct HueAPIClientTests {
 
         // Assert
         #expect(entries.isEmpty)
+    }
+
+    @Test func previewPaletteUsesKnownActiveSceneWhenCurrentLightsAreUnavailable() {
+        // Arrange
+        let client = makeClient()
+        client.scenes = [
+            makeScene(
+                id: "vapor-wave",
+                name: "Vapor Wave",
+                groupId: "room-1",
+                status: .inactive,
+                palette: makeColorPalette([
+                    CIEXYColor(x: 0.167, y: 0.04),
+                    CIEXYColor(x: 0.5, y: 0.2),
+                ])
+            ),
+            makeScene(
+                id: "bright",
+                name: "Bright",
+                groupId: "room-1",
+                status: .static,
+                palette: makeTemperaturePalette([370], brightness: 100)
+            ),
+        ]
+
+        // Act
+        let entries = client.previewPaletteEntries(for: "room-1")
+
+        // Assert
+        #expect(temperatureStops(in: entries) == [TemperatureStop(mirek: 370, brightness: 100)])
+        #expect(xyCount(in: entries) == 0)
     }
 
     @Test func toggleLightRollbackOnHTTPFailure() async throws {
