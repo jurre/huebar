@@ -395,7 +395,7 @@ final class HueAPIClient {
             throw HueAPIError.invalidResourceId
         }
         let clamped = min(max(speed, 0.0), 1.0)
-        let shouldApplyToLiveScene = isSceneDynamicActive(id: id)
+        let isDynamicSceneLive = isSceneDynamicActive(id: id)
 
         // Save previous speed for rollback
         let previousSpeed = scenes.first(where: { $0.id == id })?.speed
@@ -415,7 +415,7 @@ final class HueAPIClient {
             throw HueAPIError.invalidResponse
         }
 
-        if shouldApplyToLiveScene {
+        if isDynamicSceneLive {
             try await sendSceneRecall(id: id, action: "dynamic_palette")
         }
     }
@@ -423,9 +423,7 @@ final class HueAPIClient {
     /// Whether the active scene for a group is in dynamic palette mode
     func isActiveSceneDynamic(for groupId: String?) -> Bool {
         guard let scene = activeScene(for: groupId) else { return false }
-        if scene.isDynamicActive { return true }
-        // Fall back to locally tracked state
-        return scene.id == activeSceneId && activeSceneIsDynamic
+        return isSceneDynamicActive(scene)
     }
 
     private func sendSceneRecall(id: String, action: String) async throws {
@@ -439,10 +437,16 @@ final class HueAPIClient {
     }
 
     private func isSceneDynamicActive(id: String) -> Bool {
-        if scenes.first(where: { $0.id == id })?.isDynamicActive == true {
-            return true
+        guard let scene = scenes.first(where: { $0.id == id }) else {
+            return activeSceneId == id && activeSceneIsDynamic
         }
-        return activeSceneId == id && activeSceneIsDynamic
+        return isSceneDynamicActive(scene)
+    }
+
+    private func isSceneDynamicActive(_ scene: HueScene) -> Bool {
+        if scene.isDynamicActive { return true }
+        // Fall back to locally tracked state.
+        return activeSceneId == scene.id && activeSceneIsDynamic
     }
 
     private func updateSceneSpeed(id: String, speed: Double) {
