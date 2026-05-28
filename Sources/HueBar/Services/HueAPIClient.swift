@@ -376,16 +376,14 @@ final class HueAPIClient {
         let optimisticStatus = HueSceneStatus(active: dynamic ? .dynamicPalette : .active)
         updateSceneStatus(id: id, status: optimisticStatus)
         let action = dynamic ? "dynamic_palette" : "active"
-        let body = try JSONEncoder().encode(["recall": ["action": action]])
-        let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            try await sendSceneRecall(id: id, action: action)
+        } catch {
             // Rollback optimistic update
             activeSceneId = previousSceneId
             activeSceneIsDynamic = previousIsDynamic
             updateSceneStatus(id: id, status: previousStatus)
-            throw HueAPIError.invalidResponse
+            throw error
         }
         // Refresh grouped lights to reflect scene's brightness/on state
         groupedLights = try await fetchGroupedLights()
@@ -397,6 +395,7 @@ final class HueAPIClient {
             throw HueAPIError.invalidResourceId
         }
         let clamped = min(max(speed, 0.0), 1.0)
+        let isDynamicSceneLive = isSceneDynamicActive(id: id)
 
         // Save previous speed for rollback
         let previousSpeed = scenes.first(where: { $0.id == id })?.speed
@@ -415,14 +414,39 @@ final class HueAPIClient {
             }
             throw HueAPIError.invalidResponse
         }
+
+        if isDynamicSceneLive {
+            try await sendSceneRecall(id: id, action: "dynamic_palette")
+        }
     }
 
     /// Whether the active scene for a group is in dynamic palette mode
     func isActiveSceneDynamic(for groupId: String?) -> Bool {
         guard let scene = activeScene(for: groupId) else { return false }
+        return isSceneDynamicActive(scene)
+    }
+
+    private func sendSceneRecall(id: String, action: String) async throws {
+        let body = try JSONEncoder().encode(["recall": ["action": action]])
+        let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw HueAPIError.invalidResponse
+        }
+    }
+
+    private func isSceneDynamicActive(id: String) -> Bool {
+        guard let scene = scenes.first(where: { $0.id == id }) else {
+            return activeSceneId == id && activeSceneIsDynamic
+        }
+        return isSceneDynamicActive(scene)
+    }
+
+    private func isSceneDynamicActive(_ scene: HueScene) -> Bool {
         if scene.isDynamicActive { return true }
-        // Fall back to locally tracked state
-        return scene.id == activeSceneId && activeSceneIsDynamic
+        // Fall back to locally tracked state.
+        return activeSceneId == scene.id && activeSceneIsDynamic
     }
 
     private func updateSceneSpeed(id: String, speed: Double) {
