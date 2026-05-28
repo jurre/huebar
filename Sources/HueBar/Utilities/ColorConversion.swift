@@ -30,9 +30,15 @@ extension CIEXYColor {
     }
 
     /// Vivid color for display indicators (colored dots, previews).
-    func displayColor() -> Color {
+    func displayColor(brightness: Double? = nil) -> Color {
         let rgb = toSRGB()
-        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+        guard brightness != nil else {
+            return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+        }
+        let maxComponent = max(rgb.r, rgb.g, rgb.b, 0.0001)
+        let targetBrightness = Self.previewBrightness(from: brightness, default: maxComponent)
+        let scale = targetBrightness / maxComponent
+        return Color(red: rgb.r * scale, green: rgb.g * scale, blue: rgb.b * scale)
     }
 
     /// Convert CIE 1931 xy + brightness to sRGB SwiftUI Color.

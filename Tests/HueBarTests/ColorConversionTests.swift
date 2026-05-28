@@ -90,6 +90,37 @@ struct ColorConversionTests {
         #expect(dim.brightness > 0.25)
     }
 
+    @Test("HueLight displayColor reflects dimming brightness")
+    func hueLightDisplayColorReflectsBrightness() {
+        // Arrange
+        let xy = CIEXYColor(x: 0.4595, y: 0.4105)
+        let dimLight = makeLight(xy: xy, brightness: 5)
+        let brightLight = makeLight(xy: xy, brightness: 100)
+
+        // Act
+        let dim = extractHSB(from: dimLight.displayColor)
+        let bright = extractHSB(from: brightLight.displayColor)
+
+        // Assert
+        #expect(dim.brightness < bright.brightness)
+        #expect(dim.brightness > 0.25)
+    }
+
+    @Test("HueLight currentColor reflects dimming brightness")
+    func hueLightCurrentColorReflectsBrightness() {
+        // Arrange
+        let dimLight = makeLight(mirek: 370, brightness: 5)
+        let brightLight = makeLight(mirek: 370, brightness: 100)
+
+        // Act
+        let dim = extractHSB(from: dimLight.currentColor)
+        let bright = extractHSB(from: brightLight.currentColor)
+
+        // Assert
+        #expect(dim.brightness < bright.brightness)
+        #expect(dim.brightness > 0.25)
+    }
+
     // MARK: - displayColor()
 
     @Test("displayColor returns a valid color for a known CIE point")
@@ -206,5 +237,21 @@ struct ColorConversionTests {
         }
         let sat = maxC > 0 ? delta / maxC : 0
         return (hue: hue, saturation: sat, brightness: maxC)
+    }
+
+    private func makeLight(
+        xy: CIEXYColor? = nil,
+        mirek: Int? = nil,
+        brightness: Double
+    ) -> HueLight {
+        HueLight(
+            id: "light-1",
+            owner: ResourceLink(rid: "device-1", rtype: "device"),
+            metadata: LightMetadata(name: "Desk", archetype: "table_wash"),
+            on: OnState(on: true),
+            dimming: DimmingState(brightness: brightness),
+            color: xy.map { LightColor(xy: $0) },
+            colorTemperature: mirek.map { LightColorTemperature(mirek: $0, mirekValid: true) }
+        )
     }
 }
