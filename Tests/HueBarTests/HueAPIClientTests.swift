@@ -129,6 +129,67 @@ struct HueAPIClientTests {
         #expect(client.lastError == nil)
     }
 
+    @Test func eventStreamReconnectRefreshesBridgeState() async throws {
+        // Arrange
+        let context = createEventStreamReconnectContext()
+        await context.client.fetchAll()
+        #expect(context.client.groupedLights.first?.isOn == true)
+
+        // Act
+        context.client.startEventStream()
+        defer { context.client.stopEventStream() }
+        let didRefresh = await waitUntil {
+            context.client.groupedLights.first?.isOn == false
+        }
+
+        // Assert
+        #expect(didRefresh)
+        #expect(context.groupedLightRequestCount() >= 2)
+        #expect(context.eventStreamRequestCount() >= 2)
+    }
+
+    @Test func lightEventUpdatesContainingRoomGroupedLightState() {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "grouped-office"
+        let lightId = "office-light-1"
+        client.rooms = [
+            Room(
+                id: "office-room",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [ResourceLink(rid: groupedLightId, rtype: "grouped_light")],
+                children: [ResourceLink(rid: "office-device-1", rtype: "device")]
+            ),
+        ]
+        client.groupedLights = [
+            GroupedLight(id: groupedLightId, on: OnState(on: true), dimming: DimmingState(brightness: 80), colorTemperature: nil),
+        ]
+        client.lights = [
+            makeLight(id: lightId, name: "Office Desk", ownerRid: "office-device-1"),
+        ]
+
+        // Act
+        client.applyEventsForTesting([
+            makeUpdateEvent(resources: [
+                HueEventResource(
+                    id: lightId,
+                    type: "light",
+                    on: OnState(on: false),
+                    dimming: nil,
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                ),
+            ]),
+        ])
+
+        // Assert
+        #expect(client.lights.first?.isOn == false)
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+    }
+
     @Test func toggleGroupedLightOptimisticUpdate() async throws {
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000001"
@@ -546,5 +607,89 @@ struct HueAPIClientTests {
             color: nil,
             colorTemperature: nil
         )
+    }
+
+    private func makeUpdateEvent(resources: [HueEventResource]) -> HueEvent {
+        HueEvent(
+            creationtime: "2024-01-01T00:00:00Z",
+            id: UUID().uuidString,
+            type: .update,
+            data: resources
+        )
+    }
+
+    private func createEventStreamReconnectContext() -> (
+        client: HueAPIClient,
+        groupedLightRequestCount: () -> Int,
+        eventStreamRequestCount: () -> Int
+    ) {
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-000000000099"
+        let lock = NSLock()
+        var groupedLightRequestCount = 0
+        var eventStreamRequestCount = 0
+
+        MockURLProtocol.requestHandler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/eventstream/clip/v2" {
+                lock.lock()
+                eventStreamRequestCount += 1
+                let currentRequestCount = eventStreamRequestCount
+                lock.unlock()
+
+                if currentRequestCount == 1 {
+                    throw URLError(.networkConnectionLost)
+                }
+
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "text/event-stream"]
+                )!
+                return (response, Data(": keepalive\n\n".utf8))
+            }
+
+            let json: String
+            if path.hasSuffix("/grouped_light") {
+                lock.lock()
+                groupedLightRequestCount += 1
+                let isOn = groupedLightRequestCount == 1
+                lock.unlock()
+
+                json = """
+                {"errors":[],"data":[
+                    {"id":"\(groupedLightId)","on":{"on":\(isOn)},"dimming":{"brightness":80.0}}
+                ]}
+                """
+            } else {
+                json = #"{"errors":[],"data":[]}"#
+            }
+
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+
+        return (
+            client: client,
+            groupedLightRequestCount: {
+                lock.lock()
+                defer { lock.unlock() }
+                return groupedLightRequestCount
+            },
+            eventStreamRequestCount: {
+                lock.lock()
+                defer { lock.unlock() }
+                return eventStreamRequestCount
+            }
+        )
+    }
+
+    private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async -> Bool {
+        for _ in 0..<80 {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return condition()
     }
 }
