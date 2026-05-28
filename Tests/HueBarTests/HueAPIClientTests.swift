@@ -187,6 +187,93 @@ struct HueAPIClientTests {
         #expect(client.groupedLights.first?.brightness == 35)
     }
 
+    @Test func toggleGroupedLightOffOptimisticallyUpdatesRoomLights() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-000000000003"
+        client.rooms = [
+            Room(
+                id: "office-room",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [ResourceLink(rid: groupedLightId, rtype: "grouped_light")],
+                children: [
+                    ResourceLink(rid: "office-device-1", rtype: "device"),
+                    ResourceLink(rid: "office-device-2", rtype: "device"),
+                ]
+            ),
+        ]
+        client.groupedLights = [
+            GroupedLight(id: groupedLightId, on: OnState(on: true), dimming: DimmingState(brightness: 80.0), colorTemperature: nil),
+        ]
+        client.lights = [
+            makeLight(id: "office-light-1", name: "Office Desk", ownerRid: "office-device-1"),
+            makeLight(id: "office-light-2", name: "Office Ceiling", ownerRid: "office-device-2"),
+            makeLight(id: "kitchen-light-1", name: "Kitchen", ownerRid: "kitchen-device-1"),
+        ]
+
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Act
+        try await client.toggleGroupedLight(id: groupedLightId, on: false)
+
+        // Assert
+        let officeLights = client.lights.filter { $0.id.hasPrefix("office-light") }
+        #expect(officeLights.allSatisfy { $0.isOn == false })
+        #expect(officeLights.allSatisfy { $0.brightness == 0 })
+        #expect(client.lights.first(where: { $0.id == "kitchen-light-1" })?.isOn == true)
+        #expect(client.lights.first(where: { $0.id == "kitchen-light-1" })?.brightness == 50)
+    }
+
+    @Test func toggleGroupedLightOnOptimisticallyUpdatesRoomLights() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-000000000004"
+        client.rooms = [
+            Room(
+                id: "office-room",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [ResourceLink(rid: groupedLightId, rtype: "grouped_light")],
+                children: [
+                    ResourceLink(rid: "office-device-1", rtype: "device"),
+                    ResourceLink(rid: "office-device-2", rtype: "device"),
+                ]
+            ),
+        ]
+        client.groupedLights = [
+            GroupedLight(id: groupedLightId, on: OnState(on: false), dimming: DimmingState(brightness: 35.0), colorTemperature: nil),
+        ]
+        client.lights = [
+            makeLight(id: "office-light-1", name: "Office Desk", ownerRid: "office-device-1"),
+            makeLight(id: "office-light-2", name: "Office Ceiling", ownerRid: "office-device-2"),
+            makeLight(id: "kitchen-light-1", name: "Kitchen", ownerRid: "kitchen-device-1"),
+        ]
+        client.lights[0].on = OnState(on: false)
+        client.lights[0].dimming = DimmingState(brightness: 25)
+        client.lights[1].on = OnState(on: false)
+        client.lights[1].dimming = DimmingState(brightness: 45)
+        client.lights[2].on = OnState(on: false)
+
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Act
+        try await client.toggleGroupedLight(id: groupedLightId, on: true)
+
+        // Assert
+        let officeLights = client.lights.filter { $0.id.hasPrefix("office-light") }
+        #expect(officeLights.allSatisfy { $0.isOn == true })
+        #expect(client.lights.first(where: { $0.id == "office-light-1" })?.brightness == 25)
+        #expect(client.lights.first(where: { $0.id == "office-light-2" })?.brightness == 45)
+        #expect(client.lights.first(where: { $0.id == "kitchen-light-1" })?.isOn == false)
+    }
+
     @Test func fetchRoomsHTTPError() async throws {
         let client = makeClient()
         MockURLProtocol.requestHandler = { request in
