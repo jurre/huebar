@@ -132,6 +132,7 @@ extension CIEXYColor {
     private static func previewBrightness(from brightness: Double?, default defaultBrightness: Double) -> Double {
         guard let brightness else { return defaultBrightness }
         let normalized = min(max(brightness, 1), 100) / 100
+        // Keep barely-on lights visible in dark cards while still preserving relative brightness.
         let minimumVisibleBrightness = 0.30
         return minimumVisibleBrightness + ((defaultBrightness - minimumVisibleBrightness) * normalized)
     }
