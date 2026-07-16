@@ -22,24 +22,24 @@ struct HueLight: Decodable, Sendable, Identifiable {
     /// Vivid color for display indicators (colored dots)
     var displayColor: Color {
         if let xy = color?.xy {
-            return xy.displayColor()
+            return xy.displayColor(brightness: dimming?.brightness)
         }
         if let mirek = colorTemperature?.mirek {
-            return CIEXYColor.colorFromMirek(mirek)
+            return CIEXYColor.colorFromMirek(mirek, brightness: dimming?.brightness)
         }
-        return CIEXYColor.colorFromMirek(370)
+        return CIEXYColor.colorFromMirek(370, brightness: dimming?.brightness)
     }
 
     /// Current color as a SwiftUI Color for card backgrounds
     var currentColor: Color {
         if let xy = color?.xy {
-            return xy.swiftUIColor()
+            return xy.swiftUIColor(brightness: dimming?.brightness)
         }
         if let mirek = colorTemperature?.mirek {
-            return CIEXYColor.colorFromMirek(mirek)
+            return CIEXYColor.colorFromMirek(mirek, brightness: dimming?.brightness)
         }
         // White-only light fallback
-        return CIEXYColor.colorFromMirek(370)
+        return CIEXYColor.colorFromMirek(370, brightness: dimming?.brightness)
     }
 
     var supportsColor: Bool { color != nil }

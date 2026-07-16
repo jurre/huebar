@@ -30,9 +30,15 @@ extension CIEXYColor {
     }
 
     /// Vivid color for display indicators (colored dots, previews).
-    func displayColor() -> Color {
+    func displayColor(brightness: Double? = nil) -> Color {
         let rgb = toSRGB()
-        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+        guard brightness != nil else {
+            return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+        }
+        let maxComponent = max(rgb.r, rgb.g, rgb.b, 0.0001)
+        let targetBrightness = Self.previewBrightness(from: brightness, default: maxComponent)
+        let scale = targetBrightness / maxComponent
+        return Color(red: rgb.r * scale, green: rgb.g * scale, blue: rgb.b * scale)
     }
 
     /// Convert CIE 1931 xy + brightness to sRGB SwiftUI Color.
@@ -69,12 +75,16 @@ extension CIEXYColor {
         if warmHue < 0 { warmHue += 1 }
         if warmHue > 1 { warmHue -= 1 }
 
-        return Color(hue: warmHue, saturation: min(sat, 0.85), brightness: 0.70)
+        return Color(
+            hue: warmHue,
+            saturation: min(sat, 0.85),
+            brightness: Self.previewBrightness(from: brightness, default: 0.70)
+        )
     }
 
     /// Convert mirek color temperature to an approximate color.
     /// Mirek range: 153 (cool/blue, 6500K) to 500 (warm/orange, 2000K).
-    static func colorFromMirek(_ mirek: Int) -> Color {
+    static func colorFromMirek(_ mirek: Int, brightness: Double? = nil) -> Color {
         let kelvin = 1_000_000.0 / Double(max(mirek, 153))
         let temp = kelvin / 100.0
 
@@ -113,7 +123,24 @@ extension CIEXYColor {
         g = g + (1.0 - g) * mix
         b = b + (1.0 - b) * mix
 
+        if brightness != nil {
+            let maxComponent = max(r, g, b, 0.0001)
+            let targetBrightness = Self.previewBrightness(from: brightness, default: maxComponent)
+            let scale = targetBrightness / maxComponent
+            r *= scale
+            g *= scale
+            b *= scale
+        }
+
         return Color(red: r, green: g, blue: b)
+    }
+
+    private static func previewBrightness(from brightness: Double?, default defaultBrightness: Double) -> Double {
+        guard let brightness else { return defaultBrightness }
+        let normalized = min(max(brightness, 1), 100) / 100
+        // Keep barely-on lights visible in dark cards while still preserving relative brightness.
+        let minimumVisibleBrightness = 0.30
+        return minimumVisibleBrightness + ((defaultBrightness - minimumVisibleBrightness) * normalized)
     }
 
     /// Convert HSB (hue/saturation/brightness all 0…1) to CIE xy.

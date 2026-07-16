@@ -4,7 +4,7 @@ import Foundation
 /// View-layer code converts these to `Color` via the extension in SceneColorExtension.swift.
 enum ScenePaletteEntry: Sendable {
     case xy(CIEXYColor, brightness: Double?)
-    case colorTemperature(mirek: Int)
+    case colorTemperature(mirek: Int, brightness: Double?)
 }
 
 struct HueScene: Decodable, Sendable, Identifiable {
@@ -54,7 +54,7 @@ struct HueScene: Decodable, Sendable, Identifiable {
         if let temps = palette.colorTemperature, !temps.isEmpty {
             return temps.compactMap { entry in
                 guard let mirek = entry.colorTemperature?.mirek else { return nil }
-                return .colorTemperature(mirek: mirek)
+                return .colorTemperature(mirek: mirek, brightness: entry.dimming?.brightness)
             }
         }
 

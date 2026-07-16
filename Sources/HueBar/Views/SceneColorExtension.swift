@@ -6,8 +6,8 @@ extension ScenePaletteEntry {
         switch self {
         case .xy(let xy, let brightness):
             return xy.swiftUIColor(brightness: brightness)
-        case .colorTemperature(let mirek):
-            return CIEXYColor.colorFromMirek(mirek)
+        case .colorTemperature(let mirek, let brightness):
+            return CIEXYColor.colorFromMirek(mirek, brightness: brightness)
         }
     }
 }
@@ -21,7 +21,7 @@ extension HueScene {
 
 extension HueAPIClient {
     /// Convenience for views: converts raw palette entries to SwiftUI Colors.
-    func activeSceneColors(for groupId: String?) -> [Color] {
-        activeScenePaletteEntries(for: groupId).map(\.color)
+    func previewColors(for groupId: String?) -> [Color] {
+        previewPaletteEntries(for: groupId).map(\.color)
     }
 }
