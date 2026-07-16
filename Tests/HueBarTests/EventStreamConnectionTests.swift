@@ -205,18 +205,20 @@ struct EventStreamConnectionMockTests {
         // Should get events after the retry (backoff is 1s for first retry)
         let result = await withTimeout(seconds: 5) {
             var it = stream.makeAsyncIterator()
-            return await it.next()
+            while let message = await it.next() {
+                if case .events(let events) = message {
+                    return events
+                }
+            }
+            return []
         }
 
         connection.stop()
 
         #expect(result != nil, "Should receive events after retrying past the failure")
         if let events = result {
-            #expect(events != nil, "Events batch should not be nil")
-            if let events {
-                #expect(events.count == 1)
-                #expect(events[0].id == "ev-1")
-            }
+            #expect(events.count == 1)
+            #expect(events[0].id == "ev-1")
         }
         #expect(MockSSEProtocol.requestCount >= 2, "Should have made at least 2 requests (1 failure + 1 success)")
     }
