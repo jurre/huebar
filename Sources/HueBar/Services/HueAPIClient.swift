@@ -155,7 +155,7 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            optimisticUpdates.clear(.on, for: .light, id: id)
+            clearOptimisticLightToggle(id: id)
             lights = try await fetchLights()
             throw HueAPIError.invalidResponse
         }
@@ -255,7 +255,9 @@ final class HueAPIClient {
         guard Self.isValidResourceId(id) else {
             throw HueAPIError.invalidResourceId
         }
+        let memberLightIds = lightIds(inGroupedLight: id)
         applyGroupedLightOnOptimistically(id: id, on: on)
+        optimisticallyUpdateLights(withIds: memberLightIds, on: on)
 
         let request = try makeRequest(
             path: "grouped_light/\(id)",
@@ -266,8 +268,12 @@ final class HueAPIClient {
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             // Revert on failure
-            optimisticUpdates.clear(.on, for: .groupedLight, id: id)
+            clearOptimisticGroupedLightToggle(id: id)
+            clearOptimisticLightToggles(withIds: memberLightIds)
             groupedLights = try await fetchGroupedLights()
+            if !memberLightIds.isEmpty {
+                lights = try await fetchLights()
+            }
             throw HueAPIError.invalidResponse
         }
     }
@@ -544,6 +550,10 @@ final class HueAPIClient {
         optimisticUpdates.record(.on(on), for: .light, id: id)
         if let index = lights.firstIndex(where: { $0.id == id }) {
             lights[index].on = OnState(on: on)
+            if !on, lights[index].dimming != nil {
+                optimisticUpdates.record(.brightness(0), for: .light, id: id)
+                lights[index].dimming = DimmingState(brightness: 0)
+            }
         }
     }
 
@@ -578,6 +588,54 @@ final class HueAPIClient {
         optimisticUpdates.record(.on(on), for: .groupedLight, id: id)
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
             groupedLights[index].on = OnState(on: on)
+            if !on, groupedLights[index].dimming != nil {
+                optimisticUpdates.record(.brightness(0), for: .groupedLight, id: id)
+                groupedLights[index].dimming = DimmingState(brightness: 0)
+            }
+        }
+    }
+
+    private func optimisticallyUpdateLights(withIds lightIds: Set<String>, on: Bool) {
+        guard !lightIds.isEmpty else { return }
+
+        for index in lights.indices where lightIds.contains(lights[index].id) {
+            let lightId = lights[index].id
+            optimisticUpdates.record(.on(on), for: .light, id: lightId)
+            lights[index].on = OnState(on: on)
+            if !on, lights[index].dimming != nil {
+                optimisticUpdates.record(.brightness(0), for: .light, id: lightId)
+                lights[index].dimming = DimmingState(brightness: 0)
+            }
+        }
+    }
+
+    private func lightIds(inGroupedLight groupedLightId: String) -> Set<String> {
+        var lightIds = Set<String>()
+
+        for room in rooms where room.groupedLightId == groupedLightId {
+            lightIds.formUnion(lights(forRoom: room).map(\.id))
+        }
+
+        for zone in zones where zone.groupedLightId == groupedLightId {
+            lightIds.formUnion(lights(forZone: zone).map(\.id))
+        }
+
+        return lightIds
+    }
+
+    private func clearOptimisticLightToggle(id: String) {
+        optimisticUpdates.clear(.on, for: .light, id: id)
+        optimisticUpdates.clear(.brightness, for: .light, id: id)
+    }
+
+    private func clearOptimisticGroupedLightToggle(id: String) {
+        optimisticUpdates.clear(.on, for: .groupedLight, id: id)
+        optimisticUpdates.clear(.brightness, for: .groupedLight, id: id)
+    }
+
+    private func clearOptimisticLightToggles(withIds lightIds: Set<String>) {
+        for lightId in lightIds {
+            clearOptimisticLightToggle(id: lightId)
         }
     }
 
