@@ -27,10 +27,7 @@ struct ColorTemperatureSlider: View {
                     .frame(maxWidth: .infinity)
 
                 // Thumb
-                Circle()
-                    .fill(.white)
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                    .frame(width: thumbSize, height: thumbSize)
+                GlassThumb(size: thumbSize)
                     .offset(x: thumbOffset(width: width, thumbSize: thumbSize))
             }
             .frame(maxHeight: .infinity)

@@ -19,22 +19,14 @@ struct AddBridgeView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Button(action: onDone) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.body.weight(.semibold))
-                        Text("Add Bridge")
-                            .font(.headline)
-                    }
-                }
-                .buttonStyle(.borderless)
+                BackHeaderButton(title: "Add Bridge", action: onDone)
 
                 Spacer()
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
 
-            Divider()
+            HeaderDivider()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -51,6 +43,7 @@ struct AddBridgeView: View {
                 }
                 .padding()
             }
+            .hueScrollEdge()
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .task {
@@ -156,7 +149,7 @@ struct AddBridgeView: View {
                 .fontWeight(.medium)
 
             Button("Done") { onDone() }
-                .buttonStyle(.borderedProminent)
+                .hueProminentButtonStyle()
         }
     }
 

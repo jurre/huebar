@@ -31,13 +31,9 @@ struct SceneCard: View {
             }
             .frame(maxWidth: .infinity, minHeight: 64)
             .padding(6)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(sceneGradient)
-                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-            )
+            .hueCard(fill: sceneGradient, cornerRadius: 12, interactive: true)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(isActive ? Color.white : Color.clear, lineWidth: 2)
             )
         }
@@ -53,13 +49,14 @@ struct SceneCard: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 34, height: 34)
-                .background(.black.opacity(0.35), in: Circle())
+                .background(isLiquidGlassAvailable ? .clear : .black.opacity(0.35), in: Circle())
         }
         .accessibilityLabel(isDynamic ? "Pause dynamic scene" : "Play dynamic scene")
-        .buttonStyle(.plain)
+        .hueGlassButtonStyle(fallback: .plain)
+        .buttonBorderShape(.circle)
     }
 
-    private var sceneGradient: some ShapeStyle {
+    private var sceneGradient: AnyShapeStyle {
         let colors = scene.paletteColors
         if colors.count >= 2 {
             return AnyShapeStyle(

@@ -117,7 +117,7 @@ struct SetupView: View {
             Button("Done") {
                 finishSetup()
             }
-            .buttonStyle(.borderedProminent)
+            .hueProminentButtonStyle()
         }
     }
 
@@ -179,7 +179,7 @@ struct SetupView: View {
                 Button("Search Again") {
                     discovery.startDiscovery()
                 }
-                .buttonStyle(.borderedProminent)
+                .hueProminentButtonStyle()
             } else {
                 Button("Search Again") {
                     discovery.startDiscovery()

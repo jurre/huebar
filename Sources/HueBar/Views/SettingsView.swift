@@ -28,22 +28,14 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Button(action: onBack) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.body.weight(.semibold))
-                        Text("Settings")
-                            .font(.headline)
-                    }
-                }
-                .buttonStyle(.borderless)
+                BackHeaderButton(title: "Settings", action: onBack)
 
                 Spacer()
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
 
-            Divider()
+            HeaderDivider()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -83,13 +75,14 @@ struct SettingsView: View {
                                 Text("Add Bridge")
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(8)
-                            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
+                            .padding(isLiquidGlassAvailable ? 2 : 8)
+                            .background(isLiquidGlassAvailable ? AnyShapeStyle(.clear) : AnyShapeStyle(.quaternary.opacity(0.3)), in: RoundedRectangle(cornerRadius: 6))
                         }
-                        .buttonStyle(.plain)
+                        .hueGlassButtonStyle(fallback: .plain)
                         .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal)
+                    // Glass rows align with the section header; their own padding lines text up with other sections
+                    .padding(.horizontal, isLiquidGlassAvailable ? 4 : 16)
 
                     // Shortcuts section
                     SectionHeaderView(title: "SHORTCUTS")
@@ -122,6 +115,7 @@ struct SettingsView: View {
                 }
                 .padding()
             }
+            .hueScrollEdge()
         }
         .frame(maxHeight: .infinity, alignment: .top)
     }
@@ -169,11 +163,13 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .frame(width: 24)
             }
         }
-        .padding(8)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, isLiquidGlassAvailable ? 12 : 8)
+        .padding(.vertical, isLiquidGlassAvailable ? 10 : 8)
+        .hueGroupedBackground(cornerRadius: isLiquidGlassAvailable ? 12 : 6)
     }
 
     private func statusIndicator(_ status: BridgeConnectionStatus) -> some View {

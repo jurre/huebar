@@ -11,6 +11,15 @@ struct MenuBarView: View {
     @State private var selectedClient: HueAPIClient?
     @State private var showSettings = false
     @State private var refreshTask: Task<Void, Never>?
+    @State private var headerHeight: CGFloat = 0
+
+    /// Height of pushed screens, and the most the room list may grow to.
+    private static let panelHeight: CGFloat = 550
+
+    /// Room list scroll area cap, so header + list never exceed `panelHeight`.
+    private var maxListHeight: CGFloat {
+        Self.panelHeight - headerHeight
+    }
 
     /// The primary bridge client (first connected bridge)
     private var primaryClient: HueAPIClient? {
@@ -36,6 +45,7 @@ struct MenuBarView: View {
                     onSignOut: onSignOut,
                     onBack: { withAnimation(.easeInOut(duration: 0.25)) { showSettings = false } }
                 )
+                .frame(height: Self.panelHeight)
                 .transition(.move(edge: .trailing))
             } else if let room = selectedRoom, let client = selectedClient ?? primaryClient {
                 RoomDetailView(
@@ -43,6 +53,7 @@ struct MenuBarView: View {
                     target: .room(room),
                     onBack: { withAnimation(.easeInOut(duration: 0.25)) { selectedRoom = nil; selectedClient = nil } }
                 )
+                .frame(height: Self.panelHeight)
                 .transition(.move(edge: .trailing))
             } else if let zone = selectedZone, let client = selectedClient ?? primaryClient {
                 RoomDetailView(
@@ -50,13 +61,14 @@ struct MenuBarView: View {
                     target: .zone(zone),
                     onBack: { withAnimation(.easeInOut(duration: 0.25)) { selectedZone = nil; selectedClient = nil } }
                 )
+                .frame(height: Self.panelHeight)
                 .transition(.move(edge: .trailing))
             } else {
                 roomListView
                     .transition(.move(edge: .leading))
             }
         }
-        .frame(width: 300, height: 550)
+        .frame(width: 300)
         .clipped()
         .preferredColorScheme(.dark)
         .onAppear {
@@ -84,12 +96,14 @@ struct MenuBarView: View {
                 } label: {
                     Image(systemName: "gearshape")
                 }
-                .buttonStyle(.borderless)
+                .hueGlassIconButtonStyle()
+                .accessibilityLabel("Settings")
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
+            .onGeometryChange(for: CGFloat.self, of: \.size.height) { headerHeight = $0 }
 
-            Divider()
+            HeaderDivider()
 
             // Content
             if hasMultipleBridges {
@@ -105,18 +119,18 @@ struct MenuBarView: View {
     @ViewBuilder
     private var multiBridgeContent: some View {
         if bridgeManager.isLoading && bridgeManager.bridges.allSatisfy({ $0.client.rooms.isEmpty && $0.client.zones.isEmpty }) {
-            Spacer()
-            ProgressView("Loading…")
-            Spacer()
+            loadingView
         } else {
-            ScrollView {
+            FittingScrollView(maxHeight: maxListHeight) {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(bridgeManager.bridges) { bridge in
                         bridgeSection(bridge)
                     }
                 }
                 .padding(.vertical, 8)
+                .hueGlassContainer(spacing: 12)
             }
+            .hueScrollEdge()
         }
     }
 
@@ -217,11 +231,9 @@ struct MenuBarView: View {
         if let bridge = primaryBridge {
             let client = bridge.client
             if shouldShowInitialLoading(for: bridge) {
-                Spacer()
-                ProgressView("Loading…")
-                Spacer()
+                loadingView
             } else {
-                ScrollView {
+                FittingScrollView(maxHeight: maxListHeight) {
                     VStack(alignment: .leading, spacing: 12) {
                         if case .error(let message) = bridge.status {
                             Label(message, systemImage: "exclamationmark.triangle")
@@ -295,12 +307,12 @@ struct MenuBarView: View {
                         }
                     }
                     .padding(.vertical, 8)
+                    .hueGlassContainer(spacing: 12)
                 }
+                .hueScrollEdge()
             }
         } else {
-            Spacer()
-            ProgressView("Loading…")
-            Spacer()
+            loadingView
         }
     }
 
@@ -316,6 +328,12 @@ struct MenuBarView: View {
     }
 
     // MARK: - Subviews
+
+    private var loadingView: some View {
+        ProgressView("Loading…")
+            .frame(maxWidth: .infinity)
+            .frame(height: 200)
+    }
 
     private func sectionHeader(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon)
