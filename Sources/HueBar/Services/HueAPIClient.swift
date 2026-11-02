@@ -322,6 +322,33 @@ final class HueAPIClient {
         }
     }
 
+    func previewGroupedLightColor(lightIds: [String], xy: CIEXYColor) {
+        for lightId in lightIds {
+            previewLightColor(id: lightId, xy: xy)
+        }
+    }
+
+    /// Set color for every light in a grouped light using CIE xy coordinates.
+    /// `lightIds` are the group's color-capable lights, updated optimistically so their cards follow.
+    func setGroupedLightColor(id: String, xy: CIEXYColor, lightIds: [String]) async throws {
+        guard Self.isValidResourceId(id) else {
+            throw HueAPIError.invalidResourceId
+        }
+        previewGroupedLightColor(lightIds: lightIds, xy: xy)
+
+        let body = try JSONEncoder().encode(["color": ["xy": ["x": xy.x, "y": xy.y]]])
+        let request = try makeRequest(path: "grouped_light/\(id)", method: "PUT", body: body)
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            for lightId in lightIds {
+                optimisticUpdates.clear(.color, for: .light, id: lightId)
+            }
+            lights = try await fetchLights()
+            throw HueAPIError.invalidResponse
+        }
+    }
+
     /// Look up the GroupedLight for a room or zone
     func groupedLight(for groupId: String?) -> GroupedLight? {
         guard let groupId else { return nil }
@@ -498,6 +525,9 @@ final class HueAPIClient {
                             } else if status == .dynamicPalette {
                                 activeSceneId = resource.id
                                 activeSceneIsDynamic = true
+                            } else if status == .inactive, activeSceneId == resource.id {
+                                activeSceneId = nil
+                                activeSceneIsDynamic = false
                             }
                             updateSceneStatus(id: resource.id, status: resourceStatus)
                         }

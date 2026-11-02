@@ -19,7 +19,7 @@ Philips discontinued the official Hue macOS app years ago, and most third-party 
 - 🎚️ **Brightness Control** — Adjust brightness per room/zone with a slider
 - 🎨 **Scene Selection** — Browse and activate saved scenes in a color-coded grid
 - 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles and brightness
-- 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights
+- 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights, plus a color wheel for whole rooms and zones
 - 🌉 **Multi-Bridge Support** — Connect multiple Hue Bridges and control all your lights from one place
 - 📌 **Pin to Top** — Pin favorite rooms/zones to the top of the list
 - 🔀 **Custom Order** — Right-click any room or zone to Move Up/Down/Top/Bottom

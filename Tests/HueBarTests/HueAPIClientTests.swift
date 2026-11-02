@@ -481,6 +481,86 @@ struct HueAPIClientTests {
         #expect(client.lights.first?.color?.xy.y == 0.5)
     }
 
+    @Test func setGroupedLightColorSendsGroupRequestAndUpdatesLights() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000010"
+        let lightA = "00000000-0000-0000-0000-000000000011"
+        let lightB = "00000000-0000-0000-0000-000000000012"
+        let other = "00000000-0000-0000-0000-000000000013"
+        client.lights = [
+            makeLight(id: lightA, name: "A", ownerRid: "device-A"),
+            makeLight(id: lightB, name: "B", ownerRid: "device-B"),
+            makeLight(id: other, name: "Other", ownerRid: "device-C"),
+        ]
+
+        let sentRequest = LockedValue<URLRequest?>(nil)
+        MockURLProtocol.requestHandler = { request in
+            sentRequest.set(request)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        try await client.setGroupedLightColor(id: groupId, xy: CIEXYColor(x: 0.3, y: 0.5), lightIds: [lightA, lightB])
+
+        let request = try #require(sentRequest.get())
+        #expect(request.httpMethod == "PUT")
+        #expect(request.url?.path == "/clip/v2/resource/grouped_light/\(groupId)")
+        #expect(client.lights[0].color?.xy.x == 0.3)
+        #expect(client.lights[1].color?.xy.y == 0.5)
+        #expect(client.lights[2].color == nil)
+    }
+
+    @Test func setGroupedLightColorRevertsLightsOnFailure() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+
+        MockURLProtocol.requestHandler = { request in
+            if request.httpMethod == "PUT" {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+                return (response, Data())
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let body = """
+            {"errors":[],"data":[{"id":"\(lightId)","owner":{"rid":"device-A","rtype":"device"},"metadata":{"name":"Lamp"},"on":{"on":true},"color":{"xy":{"x":0.1,"y":0.2}}}]}
+            """
+            return (response, Data(body.utf8))
+        }
+
+        await #expect(throws: HueAPIError.self) {
+            try await client.setGroupedLightColor(id: groupId, xy: CIEXYColor(x: 0.3, y: 0.5), lightIds: [lightId])
+        }
+        #expect(client.lights.first?.color?.xy.x == 0.1)
+    }
+
+    @Test func inactiveSceneEventClearsTrackedActiveScene() {
+        let client = makeClient()
+        client.activeSceneId = "s1"
+        client.activeSceneIsDynamic = true
+        client.scenes = [makeScene(id: "s1", name: "Relax", groupId: "room-1", status: .dynamicPalette)]
+
+        client.applyEventsForTesting([
+            makeUpdateEvent(
+                resource: HueEventResource(
+                    id: "s1",
+                    type: "scene",
+                    on: nil,
+                    dimming: nil,
+                    color: nil,
+                    colorTemperature: nil,
+                    status: HueSceneStatus(active: .inactive),
+                    metadata: nil,
+                    speed: nil
+                )
+            ),
+        ])
+
+        #expect(client.activeSceneId == nil)
+        #expect(client.activeSceneIsDynamic == false)
+        #expect(client.activeScene(for: "room-1") == nil)
+    }
+
     @Test func setLightColorTemperatureMirekClamping() async throws {
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000004"

@@ -76,6 +76,7 @@ struct ColorWheelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(1, contentMode: .fit)
+        .accessibilityLabel("Color")
     }
 
     private var thumbColor: Color {
