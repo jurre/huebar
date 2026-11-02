@@ -77,6 +77,12 @@ struct ColorWheelView: View {
         }
         .aspectRatio(1, contentMode: .fit)
         .accessibilityLabel("Color")
+        .accessibilityValue(accessibilityDescription)
+    }
+
+    private var accessibilityDescription: String {
+        let hsb = xy.toHSB()
+        return "Hue \(Int(hsb.hue * 360)) degrees, saturation \(Int(hsb.saturation * 100))%"
     }
 
     private var thumbColor: Color {
