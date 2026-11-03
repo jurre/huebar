@@ -197,18 +197,21 @@ struct BackHeaderButton: View {
 
     var body: some View {
         if isLiquidGlassAvailable {
-            HStack(spacing: 8) {
-                Button(action: action) {
+            Button(action: action) {
+                HStack(spacing: 8) {
                     Image(systemName: "chevron.left")
                         .font(.body.weight(.semibold))
-                }
-                .hueGlassIconButtonStyle()
-                .accessibilityLabel("Back")
+                        .frame(width: 28, height: 28)
+                        .hueGroupedBackground(cornerRadius: 14)
 
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(1)
+                    Text(title)
+                        .font(.headline)
+                        .lineLimit(1)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back")
         } else {
             Button(action: action) {
                 HStack(spacing: 4) {
@@ -219,6 +222,7 @@ struct BackHeaderButton: View {
                 }
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel("Back")
         }
     }
 }

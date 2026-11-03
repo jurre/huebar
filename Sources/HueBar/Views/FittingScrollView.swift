@@ -6,13 +6,12 @@ struct FittingScrollView<Content: View>: View {
     let maxHeight: CGFloat
     @ViewBuilder var content: Content
 
-    @State private var contentHeight: CGFloat?
-
     var body: some View {
         ScrollView {
             content
-                .onGeometryChange(for: CGFloat.self, of: \.size.height) { contentHeight = $0 }
         }
-        .frame(height: min(contentHeight ?? maxHeight, maxHeight))
+        // Clamp the viewport before requesting the scroll view's ideal content height.
+        .frame(maxHeight: maxHeight)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

@@ -11,14 +11,14 @@ struct MenuBarView: View {
     @State private var selectedClient: HueAPIClient?
     @State private var showSettings = false
     @State private var refreshTask: Task<Void, Never>?
-    @State private var headerHeight: CGFloat = 0
-
     /// Height of pushed screens, and the most the room list may grow to.
     private static let panelHeight: CGFloat = 550
+    /// Reserve header space synchronously, including the legacy divider.
+    private static let headerHeight: CGFloat = 50
 
     /// Room list scroll area cap, so header + list never exceed `panelHeight`.
     private var maxListHeight: CGFloat {
-        Self.panelHeight - headerHeight
+        Self.panelHeight - Self.headerHeight
     }
 
     /// The primary bridge client (first connected bridge)
@@ -36,7 +36,7 @@ struct MenuBarView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        MenuPanel(maxHeight: Self.panelHeight) {
             if showSettings {
                 SettingsView(
                     bridgeManager: bridgeManager,
@@ -68,8 +68,6 @@ struct MenuBarView: View {
                     .transition(.move(edge: .leading))
             }
         }
-        .frame(width: 300)
-        .clipped()
         .preferredColorScheme(.dark)
         .onAppear {
             guard refreshTask == nil else { return }
@@ -100,10 +98,10 @@ struct MenuBarView: View {
                 .accessibilityLabel("Settings")
             }
             .padding(.horizontal)
-            .padding(.vertical, 10)
-            .onGeometryChange(for: CGFloat.self, of: \.size.height) { headerHeight = $0 }
-
-            HeaderDivider()
+            .frame(height: Self.headerHeight)
+            .overlay(alignment: .bottom) {
+                HeaderDivider()
+            }
 
             // Content
             if hasMultipleBridges {
@@ -341,5 +339,19 @@ struct MenuBarView: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal)
             .padding(.top, 4)
+    }
+}
+
+struct MenuPanel<Content: View>: View {
+    let maxHeight: CGFloat
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ZStack {
+            content
+        }
+        .frame(width: 300)
+        .frame(maxHeight: maxHeight)
+        .clipped()
     }
 }
