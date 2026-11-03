@@ -27,6 +27,9 @@ final class HueAPIClient {
         var original: LightColor?
     }
     private var groupColorPreviews: [String: GroupColorPreview] = [:]
+    /// Warm-white fallback for on, dimmable lights that do not report color temperature.
+    private static let defaultWarmWhiteMirek = 370
+
     var rooms: [Room] = []
     var zones: [Zone] = []
     var groupedLights: [GroupedLight] = []
@@ -162,7 +165,7 @@ final class HueAPIClient {
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            optimisticUpdates.clear(.on, for: .light, id: id)
+            clearOptimisticLightToggle(id: id)
             lights = try await fetchLights()
             throw HueAPIError.invalidResponse
         }
@@ -262,7 +265,9 @@ final class HueAPIClient {
         guard Self.isValidResourceId(id) else {
             throw HueAPIError.invalidResourceId
         }
+        let memberLightIds = lightIds(inGroupedLight: id)
         applyGroupedLightOnOptimistically(id: id, on: on)
+        optimisticallyUpdateLights(withIds: memberLightIds, on: on)
 
         let request = try makeRequest(
             path: "grouped_light/\(id)",
@@ -273,8 +278,12 @@ final class HueAPIClient {
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             // Revert on failure
-            optimisticUpdates.clear(.on, for: .groupedLight, id: id)
+            clearOptimisticGroupedLightToggle(id: id)
+            clearOptimisticLightToggles(withIds: memberLightIds)
             groupedLights = try await fetchGroupedLights()
+            if !memberLightIds.isEmpty {
+                lights = try await fetchLights()
+            }
             throw HueAPIError.invalidResponse
         }
     }
@@ -428,17 +437,43 @@ final class HueAPIClient {
     }
 
     /// Get the raw palette entries for a room/zone card.
-    /// Prefers the active scene, falls back to the first scene with palette entries.
-    func activeScenePaletteEntries(for groupId: String?) -> [ScenePaletteEntry] {
+    /// Prefers current on-light state, falls back only to a known active scene.
+    func previewPaletteEntries(for groupId: String?) -> [ScenePaletteEntry] {
         guard let groupId else { return [] }
-        // Use active scene if we know it
+        let currentEntries = currentLightPaletteEntries(for: groupId)
+        if !currentEntries.isEmpty {
+            return currentEntries
+        }
+
         if let active = activeScene(for: groupId), !active.paletteEntries.isEmpty {
             return active.paletteEntries
         }
-        // Fall back: use the first scene for this group that has palette entries
-        let groupScenes = scenes.filter { $0.group.rid == groupId }
-        if let withPalette = groupScenes.first(where: { !$0.paletteEntries.isEmpty }) {
-            return withPalette.paletteEntries
+
+        return []
+    }
+
+    private func currentLightPaletteEntries(for groupId: String) -> [ScenePaletteEntry] {
+        lights(forGroupId: groupId).compactMap { light in
+            guard light.isOn else { return nil }
+            if let xy = light.color?.xy {
+                return .xy(xy, brightness: light.dimming?.brightness)
+            }
+            if let mirek = light.colorTemperature?.mirek {
+                return .colorTemperature(mirek: mirek, brightness: light.dimming?.brightness)
+            }
+            if light.dimming != nil {
+                return .colorTemperature(mirek: Self.defaultWarmWhiteMirek, brightness: light.dimming?.brightness)
+            }
+            return nil
+        }
+    }
+
+    private func lights(forGroupId groupId: String) -> [HueLight] {
+        if let room = rooms.first(where: { $0.id == groupId }) {
+            return lights(forRoom: room)
+        }
+        if let zone = zones.first(where: { $0.id == groupId }) {
+            return lights(forZone: zone)
         }
         return []
     }
@@ -457,16 +492,14 @@ final class HueAPIClient {
         let optimisticStatus = HueSceneStatus(active: dynamic ? .dynamicPalette : .active)
         updateSceneStatus(id: id, status: optimisticStatus)
         let action = dynamic ? "dynamic_palette" : "active"
-        let body = try JSONEncoder().encode(["recall": ["action": action]])
-        let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            try await sendSceneRecall(id: id, action: action)
+        } catch {
             // Rollback optimistic update
             activeSceneId = previousSceneId
             activeSceneIsDynamic = previousIsDynamic
             updateSceneStatus(id: id, status: previousStatus)
-            throw HueAPIError.invalidResponse
+            throw error
         }
         // Refresh grouped lights to reflect scene's brightness/on state
         groupedLights = try await fetchGroupedLights()
@@ -478,6 +511,7 @@ final class HueAPIClient {
             throw HueAPIError.invalidResourceId
         }
         let clamped = min(max(speed, 0.0), 1.0)
+        let isDynamicSceneLive = isSceneDynamicActive(id: id)
 
         // Save previous speed for rollback
         let previousSpeed = scenes.first(where: { $0.id == id })?.speed
@@ -496,14 +530,39 @@ final class HueAPIClient {
             }
             throw HueAPIError.invalidResponse
         }
+
+        if isDynamicSceneLive {
+            try await sendSceneRecall(id: id, action: "dynamic_palette")
+        }
     }
 
     /// Whether the active scene for a group is in dynamic palette mode
     func isActiveSceneDynamic(for groupId: String?) -> Bool {
         guard let scene = activeScene(for: groupId) else { return false }
+        return isSceneDynamicActive(scene)
+    }
+
+    private func sendSceneRecall(id: String, action: String) async throws {
+        let body = try JSONEncoder().encode(["recall": ["action": action]])
+        let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw HueAPIError.invalidResponse
+        }
+    }
+
+    private func isSceneDynamicActive(id: String) -> Bool {
+        guard let scene = scenes.first(where: { $0.id == id }) else {
+            return activeSceneId == id && activeSceneIsDynamic
+        }
+        return isSceneDynamicActive(scene)
+    }
+
+    private func isSceneDynamicActive(_ scene: HueScene) -> Bool {
         if scene.isDynamicActive { return true }
-        // Fall back to locally tracked state
-        return scene.id == activeSceneId && activeSceneIsDynamic
+        // Fall back to locally tracked state.
+        return activeSceneId == scene.id && activeSceneIsDynamic
     }
 
     private func updateSceneSpeed(id: String, speed: Double) {
@@ -723,6 +782,44 @@ final class HueAPIClient {
         optimisticUpdates.record(.on(on), for: .groupedLight, id: id)
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
             groupedLights[index].on = OnState(on: on)
+        }
+    }
+
+    private func optimisticallyUpdateLights(withIds lightIds: Set<String>, on: Bool) {
+        guard !lightIds.isEmpty else { return }
+
+        for index in lights.indices where lightIds.contains(lights[index].id) {
+            let lightId = lights[index].id
+            optimisticUpdates.record(.on(on), for: .light, id: lightId)
+            lights[index].on = OnState(on: on)
+        }
+    }
+
+    private func lightIds(inGroupedLight groupedLightId: String) -> Set<String> {
+        var lightIds = Set<String>()
+
+        for room in rooms where room.groupedLightId == groupedLightId {
+            lightIds.formUnion(lights(forRoom: room).map(\.id))
+        }
+
+        for zone in zones where zone.groupedLightId == groupedLightId {
+            lightIds.formUnion(lights(forZone: zone).map(\.id))
+        }
+
+        return lightIds
+    }
+
+    private func clearOptimisticLightToggle(id: String) {
+        optimisticUpdates.clear(.on, for: .light, id: id)
+    }
+
+    private func clearOptimisticGroupedLightToggle(id: String) {
+        optimisticUpdates.clear(.on, for: .groupedLight, id: id)
+    }
+
+    private func clearOptimisticLightToggles(withIds lightIds: Set<String>) {
+        for lightId in lightIds {
+            clearOptimisticLightToggle(id: lightId)
         }
     }
 

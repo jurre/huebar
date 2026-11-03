@@ -82,16 +82,12 @@ struct LightRowView: View {
             }
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(cardGradient)
-                .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
-        )
+        .hueCard(fill: cardGradient, cornerRadius: 14, interactive: true, shadowOpacity: 0.3, shadowRadius: 6)
         .padding(.horizontal)
         .onAppear {
-            sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
+            sliderBrightness = max(groupedLight?.displayBrightness ?? 0, 1)
         }
-        .onChange(of: groupedLight?.brightness) { _, newValue in
+        .onChange(of: groupedLight?.displayBrightness) { _, newValue in
             if let newValue, !isUserDragging {
                 sliderBrightness = max(newValue, 1)
             }
@@ -103,11 +99,10 @@ struct LightRowView: View {
         .onDisappear { debounceTask?.cancel() }
     }
 
-    private var cardGradient: some ShapeStyle {
-        guard isOn else {
-            return AnyShapeStyle(Color.hueCardOff)
-        }
-        let colors = apiClient.activeSceneColors(for: groupId)
+    /// `nil` when off: plain glass on macOS 26, `hueCardOff` otherwise.
+    private var cardGradient: AnyShapeStyle? {
+        guard isOn else { return nil }
+        let colors = apiClient.previewColors(for: groupId)
         if colors.count >= 2 {
             return AnyShapeStyle(
                 LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
