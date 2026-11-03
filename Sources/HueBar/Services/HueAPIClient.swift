@@ -463,9 +463,9 @@ final class HueAPIClient {
         eventStreamConnection = connection
 
         let stream = connection.start()
-        eventConsumingTask = Task {
-            for await events in stream {
-                applyEvents(events)
+        eventConsumingTask = Task { [weak self] in
+            for await message in stream {
+                await self?.handleEventStreamMessage(message)
             }
         }
     }
@@ -479,11 +479,24 @@ final class HueAPIClient {
         refreshDebounceTask = nil
     }
 
-    func applyEventsForTesting(_ events: [HueEvent]) {
-        applyEvents(events)
+    func handleEventStreamMessage(_ message: EventStreamMessage) async {
+        switch message {
+        case .reconnected:
+            // The full refresh supersedes a pending debounced one. Waiting for it to finish keeps its
+            // older snapshot from landing after ours.
+            if let pendingRefresh = refreshDebounceTask {
+                refreshDebounceTask = nil
+                pendingRefresh.cancel()
+                await pendingRefresh.value
+                guard !Task.isCancelled else { return }
+            }
+            await fetchAll()
+        case .events(let events):
+            applyEvents(events)
+        }
     }
 
-    private func applyEvents(_ events: [HueEvent]) {
+    func applyEvents(_ events: [HueEvent]) {
         for event in events {
             switch event.type {
             case .update:
@@ -495,6 +508,9 @@ final class HueAPIClient {
                     case "light":
                         let filteredResource = optimisticUpdates.filter(resource, kind: .light)
                         EventStreamUpdater.apply(filteredResource, to: &lights)
+                        if filteredResource.on != nil {
+                            syncGroupedLightOnState(containingLightId: resource.id)
+                        }
                     case "scene":
                         if let status = resource.status?.active,
                            let resourceStatus = resource.status {
@@ -523,6 +539,54 @@ final class HueAPIClient {
                 }
             }
         }
+    }
+
+    /// Derives each containing group's on state from its member lights. It is skipped while the user's
+    /// own toggle of that group is pending, because the derived value could coincidentally match and
+    /// end the protection before the bridge's own `grouped_light` event arrives.
+    private func syncGroupedLightOnState(containingLightId lightId: String) {
+        for groupedLightId in groupedLightIds(containingLightId: lightId) {
+            guard !optimisticUpdates.hasPending(.on, for: .groupedLight, id: groupedLightId) else { continue }
+            let memberLights = lights(inGroupedLight: groupedLightId)
+            guard !memberLights.isEmpty else { continue }
+            let derivedState = HueEventResource(
+                id: groupedLightId,
+                type: "grouped_light",
+                on: OnState(on: memberLights.contains(where: \.isOn)),
+                dimming: nil,
+                color: nil,
+                colorTemperature: nil,
+                status: nil,
+                metadata: nil,
+                speed: nil
+            )
+            EventStreamUpdater.apply(derivedState, to: &groupedLights)
+        }
+    }
+
+    private func groupedLightIds(containingLightId lightId: String) -> Set<String> {
+        var groupedLightIds = Set<String>()
+        for room in rooms where lights(forRoom: room).contains(where: { $0.id == lightId }) {
+            if let groupedLightId = room.groupedLightId {
+                groupedLightIds.insert(groupedLightId)
+            }
+        }
+        for zone in zones where lights(forZone: zone).contains(where: { $0.id == lightId }) {
+            if let groupedLightId = zone.groupedLightId {
+                groupedLightIds.insert(groupedLightId)
+            }
+        }
+        return groupedLightIds
+    }
+
+    private func lights(inGroupedLight groupedLightId: String) -> [HueLight] {
+        if let room = rooms.first(where: { $0.groupedLightId == groupedLightId }) {
+            return lights(forRoom: room)
+        }
+        if let zone = zones.first(where: { $0.groupedLightId == groupedLightId }) {
+            return lights(forZone: zone)
+        }
+        return []
     }
 
     // MARK: - Pinning & Ordering (forwarded to RoomOrderManager)

@@ -150,6 +150,135 @@ struct HueAPIClientTests {
         #expect(client.lastError == nil)
     }
 
+    @Test func eventStreamReconnectRefreshesBridgeState() async throws {
+        // Arrange
+        let context = createEventStreamReconnectContext()
+        await context.client.fetchAll()
+        #expect(context.client.groupedLights.first?.isOn == true)
+
+        // Act
+        context.client.startEventStream()
+        defer { context.client.stopEventStream() }
+        let didRefresh = await waitUntil {
+            context.client.groupedLights.first?.isOn == false
+        }
+
+        // Assert
+        #expect(didRefresh)
+        #expect(context.groupedLightRequestCount() >= 2)
+        #expect(context.eventStreamRequestCount() >= 2)
+    }
+
+    @Test func lightEventUpdatesContainingRoomGroupedLightState() {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "grouped-office"
+        let lightId = "office-light-1"
+        client.rooms = [
+            Room(
+                id: "office-room",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [ResourceLink(rid: groupedLightId, rtype: "grouped_light")],
+                children: [ResourceLink(rid: "office-device-1", rtype: "device")]
+            ),
+        ]
+        client.groupedLights = [
+            GroupedLight(id: groupedLightId, on: OnState(on: true), dimming: DimmingState(brightness: 80), colorTemperature: nil),
+        ]
+        client.lights = [
+            makeLight(id: lightId, name: "Office Desk", ownerRid: "office-device-1"),
+        ]
+
+        // Act
+        client.applyEvents([
+            makeUpdateEvent(resources: [
+                HueEventResource(
+                    id: lightId,
+                    type: "light",
+                    on: OnState(on: false),
+                    dimming: nil,
+                    color: nil,
+                    colorTemperature: nil,
+                    status: nil,
+                    metadata: nil,
+                    speed: nil
+                ),
+            ]),
+        ])
+
+        // Assert
+        #expect(client.lights.first?.isOn == false)
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+    }
+
+    @Test func roomGroupedLightStaysOnUntilLastMemberLightTurnsOff() {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-0000000000a1"
+        configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1", "office-light-2"])
+
+        // Act & Assert
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: false))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == true)
+
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-2", on: false))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+    }
+
+    @Test func lightEventWithoutOnStateDoesNotRecomputeRoomGroupedLightState() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-0000000000a2"
+        configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1"])
+        client.groupedLights[0].on = OnState(on: false)
+
+        // Act
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", brightness: 30))])
+
+        // Assert
+        #expect(client.lights.first?.dimming?.brightness == 30)
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+    }
+
+    @Test func memberLightEventsDoNotRevertPendingRoomToggle() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-0000000000a3"
+        configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1", "office-light-2"])
+        stubSuccessfulResponses()
+        try await client.toggleGroupedLight(id: groupedLightId, on: false)
+
+        // Act & Assert: the first light reports off while the second is still cached as on
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: false))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-2", on: false))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+
+        // The bridge's own grouped_light event confirms the toggle and ends the protection
+        client.applyEvents([makeUpdateEvent(resource: makeGroupedLightEventResource(id: groupedLightId, on: false))])
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: true))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == true)
+    }
+
+    @Test func memberLightEventsDoNotRevertRoomToggledOffThenOnAgain() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-0000000000a4"
+        configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1", "office-light-2"])
+        stubSuccessfulResponses()
+        try await client.toggleGroupedLight(id: groupedLightId, on: false)
+        try await client.toggleGroupedLight(id: groupedLightId, on: true)
+
+        // Act: events from the first (off) command arrive after the second toggle
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: false))])
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-2", on: false))])
+        client.applyEvents([makeUpdateEvent(resource: makeGroupedLightEventResource(id: groupedLightId, on: false))])
+
+        // Assert
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == true)
+    }
+
     @Test func toggleGroupedLightOptimisticUpdate() async throws {
         // Arrange
         let client = makeClient()
@@ -394,7 +523,7 @@ struct HueAPIClientTests {
 
         // Act
         try await client.setBrightness(groupedLightId: validId, brightness: 40.0)
-        client.applyEventsForTesting([
+        client.applyEvents([
             makeUpdateEvent(
                 resource: HueEventResource(
                     id: validId,
@@ -414,7 +543,7 @@ struct HueAPIClientTests {
         #expect(client.groupedLights.first?.brightness == 40.0)
 
         // Act
-        client.applyEventsForTesting([
+        client.applyEvents([
             makeUpdateEvent(
                 resource: HueEventResource(
                     id: validId,
@@ -429,7 +558,7 @@ struct HueAPIClientTests {
                 )
             ),
         ])
-        client.applyEventsForTesting([
+        client.applyEvents([
             makeUpdateEvent(
                 resource: HueEventResource(
                     id: validId,
@@ -459,7 +588,7 @@ struct HueAPIClientTests {
 
         // Act
         client.previewBrightness(groupedLightId: validId, brightness: 40.0)
-        client.applyEventsForTesting([
+        client.applyEvents([
             makeUpdateEvent(
                 resource: HueEventResource(
                     id: validId,
@@ -823,12 +952,141 @@ struct HueAPIClientTests {
         )
     }
 
+    private func makeLightEventResource(id: String, on: Bool? = nil, brightness: Double? = nil) -> HueEventResource {
+        HueEventResource(
+            id: id,
+            type: "light",
+            on: on.map { OnState(on: $0) },
+            dimming: brightness.map { DimmingState(brightness: $0) },
+            color: nil,
+            colorTemperature: nil,
+            status: nil,
+            metadata: nil,
+            speed: nil
+        )
+    }
+
+    private func makeGroupedLightEventResource(id: String, on: Bool) -> HueEventResource {
+        HueEventResource(
+            id: id,
+            type: "grouped_light",
+            on: OnState(on: on),
+            dimming: nil,
+            color: nil,
+            colorTemperature: nil,
+            status: nil,
+            metadata: nil,
+            speed: nil
+        )
+    }
+
+    private func configureOfficeRoom(_ client: HueAPIClient, groupedLightId: String, lightIds: [String]) {
+        client.rooms = [
+            Room(
+                id: "office-room",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [ResourceLink(rid: groupedLightId, rtype: "grouped_light")],
+                children: lightIds.map { ResourceLink(rid: "device-\($0)", rtype: "device") }
+            ),
+        ]
+        client.groupedLights = [
+            GroupedLight(id: groupedLightId, on: OnState(on: true), dimming: DimmingState(brightness: 80), colorTemperature: nil),
+        ]
+        client.lights = lightIds.map { makeLight(id: $0, name: $0, ownerRid: "device-\($0)") }
+    }
+
+    private func stubSuccessfulResponses() {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"errors":[],"data":[]}"#.utf8))
+        }
+    }
+
     private func makeUpdateEvent(resource: HueEventResource) -> HueEvent {
+        makeUpdateEvent(resources: [resource])
+    }
+
+    private func makeUpdateEvent(resources: [HueEventResource]) -> HueEvent {
         HueEvent(
             creationtime: "2024-01-01T00:00:00Z",
             id: UUID().uuidString,
             type: .update,
-            data: [resource]
+            data: resources
         )
+    }
+
+    private func createEventStreamReconnectContext() -> (
+        client: HueAPIClient,
+        groupedLightRequestCount: () -> Int,
+        eventStreamRequestCount: () -> Int
+    ) {
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-000000000099"
+        let lock = NSLock()
+        var groupedLightRequestCount = 0
+        var eventStreamRequestCount = 0
+
+        MockURLProtocol.requestHandler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/eventstream/clip/v2" {
+                lock.lock()
+                eventStreamRequestCount += 1
+                let currentRequestCount = eventStreamRequestCount
+                lock.unlock()
+
+                if currentRequestCount == 1 {
+                    throw URLError(.networkConnectionLost)
+                }
+
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "text/event-stream"]
+                )!
+                return (response, Data(": keepalive\n\n".utf8))
+            }
+
+            let json: String
+            if path.hasSuffix("/grouped_light") {
+                lock.lock()
+                groupedLightRequestCount += 1
+                let isOn = groupedLightRequestCount == 1
+                lock.unlock()
+
+                json = """
+                {"errors":[],"data":[
+                    {"id":"\(groupedLightId)","on":{"on":\(isOn)},"dimming":{"brightness":80.0}}
+                ]}
+                """
+            } else {
+                json = #"{"errors":[],"data":[]}"#
+            }
+
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        }
+
+        return (
+            client: client,
+            groupedLightRequestCount: {
+                lock.lock()
+                defer { lock.unlock() }
+                return groupedLightRequestCount
+            },
+            eventStreamRequestCount: {
+                lock.lock()
+                defer { lock.unlock() }
+                return eventStreamRequestCount
+            }
+        )
+    }
+
+    private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async -> Bool {
+        for _ in 0..<80 {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return condition()
     }
 }

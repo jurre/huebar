@@ -45,6 +45,18 @@ struct OptimisticUpdateTracker: Sendable {
         return Self.filter(event, key: key, pendingUpdates: &updates, now: now)
     }
 
+    /// Whether an unexpired pending value exists for `field`. Unlike `filter`, this never confirms
+    /// or clears it, so only a real event or the expiry ends the protection.
+    func hasPending(_ field: Field, for kind: ResourceKind, id: String, now: Date = Date()) -> Bool {
+        guard let pending = updates[ResourceKey(kind: kind, id: id)] else { return false }
+        switch field {
+        case .on: return pending.on.map { !$0.isExpired(at: now) } ?? false
+        case .brightness: return pending.brightness.map { !$0.isExpired(at: now) } ?? false
+        case .color: return pending.color.map { !$0.isExpired(at: now) } ?? false
+        case .colorTemperature: return pending.colorTemperature.map { !$0.isExpired(at: now) } ?? false
+        }
+    }
+
     private static func filter(
         _ event: HueEventResource,
         key: ResourceKey,
