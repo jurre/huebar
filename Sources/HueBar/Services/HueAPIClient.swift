@@ -482,6 +482,7 @@ final class HueAPIClient {
                 refreshDebounceTask = nil
                 pendingRefresh.cancel()
                 await pendingRefresh.value
+                guard !Task.isCancelled else { return }
             }
             await fetchAll()
         case .events(let events):
@@ -534,10 +535,12 @@ final class HueAPIClient {
         }
     }
 
-    /// Derives each containing group's on state from its member lights. The derived value is filtered
-    /// like a real `grouped_light` event so it can't override a toggle the user just made.
+    /// Derives each containing group's on state from its member lights. It is skipped while the user's
+    /// own toggle of that group is pending, because the derived value could coincidentally match and
+    /// end the protection before the bridge's own `grouped_light` event arrives.
     private func syncGroupedLightOnState(containingLightId lightId: String) {
         for groupedLightId in groupedLightIds(containingLightId: lightId) {
+            guard !optimisticUpdates.hasPending(.on, for: .groupedLight, id: groupedLightId) else { continue }
             let memberLights = lights(inGroupedLight: groupedLightId)
             guard !memberLights.isEmpty else { continue }
             let derivedState = HueEventResource(
@@ -551,8 +554,7 @@ final class HueAPIClient {
                 metadata: nil,
                 speed: nil
             )
-            let filteredState = optimisticUpdates.filter(derivedState, kind: .groupedLight)
-            EventStreamUpdater.apply(filteredState, to: &groupedLights)
+            EventStreamUpdater.apply(derivedState, to: &groupedLights)
         }
     }
 

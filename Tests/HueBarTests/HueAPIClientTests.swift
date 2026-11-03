@@ -230,9 +230,7 @@ struct HueAPIClientTests {
         let client = makeClient()
         let groupedLightId = "00000000-0000-0000-0000-0000000000a2"
         configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1"])
-        stubSuccessfulResponses()
-        try await client.toggleGroupedLight(id: groupedLightId, on: false)
-        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+        client.groupedLights[0].on = OnState(on: false)
 
         // Act
         client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", brightness: 30))])
@@ -257,8 +255,27 @@ struct HueAPIClientTests {
         client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-2", on: false))])
         #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
 
-        // The toggle protection ends once the derived state agrees, so later changes still apply
+        // The bridge's own grouped_light event confirms the toggle and ends the protection
+        client.applyEvents([makeUpdateEvent(resource: makeGroupedLightEventResource(id: groupedLightId, on: false))])
         client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: true))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == true)
+    }
+
+    @Test func memberLightEventsDoNotRevertRoomToggledOffThenOnAgain() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-0000000000a4"
+        configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1", "office-light-2"])
+        stubSuccessfulResponses()
+        try await client.toggleGroupedLight(id: groupedLightId, on: false)
+        try await client.toggleGroupedLight(id: groupedLightId, on: true)
+
+        // Act: events from the first (off) command arrive after the second toggle
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: false))])
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-2", on: false))])
+        client.applyEvents([makeUpdateEvent(resource: makeGroupedLightEventResource(id: groupedLightId, on: false))])
+
+        // Assert
         #expect(client.groupedLight(for: groupedLightId)?.isOn == true)
     }
 
@@ -803,6 +820,20 @@ struct HueAPIClientTests {
             type: "light",
             on: on.map { OnState(on: $0) },
             dimming: brightness.map { DimmingState(brightness: $0) },
+            color: nil,
+            colorTemperature: nil,
+            status: nil,
+            metadata: nil,
+            speed: nil
+        )
+    }
+
+    private func makeGroupedLightEventResource(id: String, on: Bool) -> HueEventResource {
+        HueEventResource(
+            id: id,
+            type: "grouped_light",
+            on: OnState(on: on),
+            dimming: nil,
             color: nil,
             colorTemperature: nil,
             status: nil,
