@@ -8,6 +8,8 @@ struct GroupedLight: Decodable, Sendable, Identifiable {
 
     var isOn: Bool { on?.on ?? false }
     var brightness: Double { dimming?.brightness ?? 0.0 }
+    /// Off-state presentation must not overwrite the bridge's retained dimming level.
+    var displayBrightness: Double { isOn ? brightness : 0 }
     var mirek: Int? { colorTemperature?.mirek }
 
     enum CodingKeys: String, CodingKey {
@@ -15,5 +17,4 @@ struct GroupedLight: Decodable, Sendable, Identifiable {
         case colorTemperature = "color_temperature"
     }
 }
-
 

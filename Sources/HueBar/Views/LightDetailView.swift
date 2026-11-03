@@ -74,7 +74,7 @@ struct LightDetailView: View {
         }
         .onAppear { syncFromLight() }
         .onChange(of: light.id) { _, _ in syncFromLight() }
-        .onChange(of: light.brightness) { _, newValue in
+        .onChange(of: light.displayBrightness) { _, newValue in
             handleBrightnessAction(brightnessInteraction.bridgeBrightnessChanged(newValue))
         }
         .onChange(of: sliderBrightness) { _, newValue in
@@ -88,7 +88,7 @@ struct LightDetailView: View {
     }
 
     private func syncFromLight() {
-        sliderBrightness = BrightnessSliderInteraction.sliderValue(for: light.brightness)
+        sliderBrightness = BrightnessSliderInteraction.sliderValue(for: light.displayBrightness)
         if let xy = light.color?.xy {
             colorXY = xy
         }

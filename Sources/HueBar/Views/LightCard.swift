@@ -36,24 +36,18 @@ struct LightCard: View {
                 }
                 .padding(10)
             }
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(cardBackground)
-                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .hueCard(fill: cardBackground, cornerRadius: 12, interactive: true, clip: true)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
             )
         }
         .buttonStyle(.plain)
     }
 
-    private var cardBackground: some ShapeStyle {
-        guard light.isOn else {
-            return AnyShapeStyle(Color.hueCardOff)
-        }
+    /// `nil` when off: plain glass on macOS 26, `hueCardOff` otherwise.
+    private var cardBackground: AnyShapeStyle? {
+        guard light.isOn else { return nil }
         let base = light.currentColor
         return AnyShapeStyle(
             LinearGradient(
