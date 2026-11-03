@@ -169,6 +169,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .frame(width: 24)
             }
         }
