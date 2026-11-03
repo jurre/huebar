@@ -162,9 +162,9 @@ struct EventStreamConnectionMockTests {
         return URLSession(configuration: config)
     }
 
-    private func makeSSEData() -> Data {
+    private func makeSSEData(eventId: String = "ev-1") -> Data {
         let json = """
-        [{"creationtime":"2024-01-01T00:00:00Z","id":"ev-1","type":"update","data":[{"id":"l-1","type":"light","on":{"on":true}}]}]
+        [{"creationtime":"2024-01-01T00:00:00Z","id":"\(eventId)","type":"update","data":[{"id":"l-1","type":"light","on":{"on":true}}]}]
         """
         return "data: \(json)\n\n".data(using: .utf8)!
     }
@@ -205,18 +205,20 @@ struct EventStreamConnectionMockTests {
         // Should get events after the retry (backoff is 1s for first retry)
         let result = await withTimeout(seconds: 5) {
             var it = stream.makeAsyncIterator()
-            return await it.next()
+            while let message = await it.next() {
+                if case .events(let events) = message {
+                    return events
+                }
+            }
+            return []
         }
 
         connection.stop()
 
         #expect(result != nil, "Should receive events after retrying past the failure")
         if let events = result {
-            #expect(events != nil, "Events batch should not be nil")
-            if let events {
-                #expect(events.count == 1)
-                #expect(events[0].id == "ev-1")
-            }
+            #expect(events.count == 1)
+            #expect(events[0].id == "ev-1")
         }
         #expect(MockSSEProtocol.requestCount >= 2, "Should have made at least 2 requests (1 failure + 1 success)")
     }
@@ -250,5 +252,73 @@ struct EventStreamConnectionMockTests {
         connection.stop()
 
         #expect(count == 1, "Two start() calls should only create one connection, got \(count)")
+    }
+
+    @Test("Yields reconnected once the stream is re-established after a clean close")
+    func yieldsReconnectedAfterCleanClose() async {
+        MockSSEProtocol.responses = [
+            (200, makeSSEData(eventId: "ev-1")), // Closed by the server after one event
+            (200, makeSSEData(eventId: "ev-2")),
+        ]
+        MockSSEProtocol.requestCount = 0
+
+        let connection = EventStreamConnection(
+            bridgeIP: "192.0.2.1",
+            applicationKey: "test-key",
+            session: makeMockSession()
+        )
+        let stream = connection.start()
+
+        let received = await withTimeout(seconds: 5) {
+            var received: [String] = []
+            var it = stream.makeAsyncIterator()
+            while let message = await it.next() {
+                switch message {
+                case .reconnected:
+                    received.append("reconnected")
+                case .events(let events):
+                    received.append(contentsOf: events.map(\.id))
+                }
+                if received.last == "ev-2" { break }
+            }
+            return received
+        }
+
+        connection.stop()
+
+        #expect(received == ["ev-1", "reconnected", "ev-2"])
+    }
+
+    @Test("Backs off instead of reconnecting immediately when the bridge keeps closing the stream")
+    func backsOffWhenStreamKeepsClosingImmediately() async {
+        // Drain in-flight requests from prior tests before resetting the counter.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        // Every attempt gets a 200 and is then closed by the server right away.
+        MockSSEProtocol.responses = Array(repeating: (200, Data(": hi\n\n".utf8)), count: 500)
+        MockSSEProtocol.requestCount = 0
+
+        let connection = EventStreamConnection(
+            bridgeIP: "192.0.2.1",
+            applicationKey: "test-key",
+            session: makeMockSession()
+        )
+        let stream = connection.start()
+        let reader = Task {
+            var reconnects = 0
+            for await message in stream {
+                if case .reconnected = message { reconnects += 1 }
+            }
+            return reconnects
+        }
+
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        connection.stop()
+        let requestCount = MockSSEProtocol.requestCount
+        let reconnects = await reader.value
+
+        // First attempt at t=0, the second only after the 1s back-off.
+        #expect(requestCount <= 3, "Should back off between reconnects, got \(requestCount) requests in 1.5s")
+        #expect(reconnects <= 2, "Should not trigger a resync per reconnect attempt, got \(reconnects)")
     }
 }
