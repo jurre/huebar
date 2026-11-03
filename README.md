@@ -69,6 +69,8 @@ swift run
 3. When your bridge is found, click it and press the **link button** on your physical Hue Bridge
 4. That's it — your rooms and zones appear with toggle switches, brightness sliders, scene selection, and individual light controls
 
+Room and zone color changes preview immediately and coalesce while dragging. Leaving the detail view sends the final selection; failed changes restore the last known color and reconcile with the bridge when reachable.
+
 ### Multiple Bridges
 
 If you have more than one Hue Bridge:

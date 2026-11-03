@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 enum HueAPIError: Error, LocalizedError {
     case bridgeError(String)
@@ -20,6 +21,12 @@ enum HueAPIError: Error, LocalizedError {
 @Observable
 @MainActor
 final class HueAPIClient {
+    private static let logger = Logger(subsystem: "com.huebar", category: "HueAPIClient")
+    private struct GroupColorPreview {
+        let token: UUID
+        var original: LightColor?
+    }
+    private var groupColorPreviews: [String: GroupColorPreview] = [:]
     var rooms: [Room] = []
     var zones: [Zone] = []
     var groupedLights: [GroupedLight] = []
@@ -322,30 +329,73 @@ final class HueAPIClient {
         }
     }
 
-    func previewGroupedLightColor(lightIds: [String], xy: CIEXYColor) {
+    @discardableResult
+    func previewGroupedLightColor(lightIds: [String], xy: CIEXYColor) -> UUID {
+        let token = UUID()
         for lightId in lightIds {
+            let original: LightColor?
+            if let pending = groupColorPreviews[lightId] {
+                original = pending.original
+            } else {
+                original = lights.first(where: { $0.id == lightId })?.color
+            }
             previewLightColor(id: lightId, xy: xy)
+            groupColorPreviews[lightId] = GroupColorPreview(token: token, original: original)
         }
+        return token
     }
 
     /// Set color for every light in a grouped light using CIE xy coordinates.
     /// `lightIds` are the group's color-capable lights, updated optimistically so their cards follow.
-    func setGroupedLightColor(id: String, xy: CIEXYColor, lightIds: [String]) async throws {
-        guard Self.isValidResourceId(id) else {
-            throw HueAPIError.invalidResourceId
-        }
-        previewGroupedLightColor(lightIds: lightIds, xy: xy)
-
-        let body = try JSONEncoder().encode(["color": ["xy": ["x": xy.x, "y": xy.y]]])
-        let request = try makeRequest(path: "grouped_light/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            for lightId in lightIds {
-                optimisticUpdates.clear(.color, for: .light, id: lightId)
+    func setGroupedLightColor(id: String, xy: CIEXYColor, lightIds: [String], previewToken: UUID? = nil) async throws {
+        let token = previewToken ?? previewGroupedLightColor(lightIds: lightIds, xy: xy)
+        do {
+            guard Self.isValidResourceId(id) else {
+                throw HueAPIError.invalidResourceId
             }
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
+            let body = try JSONEncoder().encode(["color": ["xy": ["x": xy.x, "y": xy.y]]])
+            let request = try makeRequest(path: "grouped_light/\(id)", method: "PUT", body: body)
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                throw HueAPIError.invalidResponse
+            }
+            if !data.isEmpty {
+                let result = try JSONDecoder().decode(HueResponse<ResourceLink>.self, from: data)
+                if let error = result.errors.first {
+                    throw HueAPIError.bridgeError(error.description)
+                }
+            }
+            for lightId in lightIds {
+                if groupColorPreviews[lightId]?.token == token {
+                    groupColorPreviews[lightId] = nil
+                } else if groupColorPreviews[lightId] != nil {
+                    groupColorPreviews[lightId]?.original = LightColor(xy: xy)
+                }
+            }
+        } catch {
+            for lightId in lightIds where groupColorPreviews[lightId]?.token == token {
+                optimisticUpdates.clear(.color, for: .light, id: lightId)
+                if let index = lights.firstIndex(where: { $0.id == lightId }) {
+                    lights[index].color = groupColorPreviews[lightId]?.original
+                }
+            }
+            // A failed/cancelled PUT may still have reached the bridge. Reconcile independently
+            // of caller cancellation, without overwriting newer previews or unrelated fields.
+            do {
+                let refreshed = try await Task { try await self.fetchLights() }.value
+                for light in refreshed where groupColorPreviews[light.id]?.token == token {
+                    if let index = lights.firstIndex(where: { $0.id == light.id }) {
+                        lights[index].color = light.color
+                    }
+                }
+            } catch {
+                Self.logger.error("Failed to reconcile group color: \(error.localizedDescription)")
+            }
+            for lightId in lightIds where groupColorPreviews[lightId]?.token == token {
+                groupColorPreviews[lightId] = nil
+            }
+            throw error
         }
     }
 
@@ -652,6 +702,7 @@ final class HueAPIClient {
     }
 
     private func applyLightColorOptimistically(id: String, xy: CIEXYColor) {
+        groupColorPreviews[id] = nil
         optimisticUpdates.record(.color(xy), for: .light, id: id)
         if let index = lights.firstIndex(where: { $0.id == id }) {
             lights[index].color = LightColor(xy: xy)

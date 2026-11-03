@@ -663,13 +663,258 @@ struct HueAPIClientTests {
         #expect(client.lights.first?.color?.xy.x == 0.1)
     }
 
+    @Test func groupColorTransportFailureRestoresPreviewAndAcceptsEvents() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+        client.lights[0].color = LightColor(xy: CIEXYColor(x: 0.1, y: 0.2))
+        MockURLProtocol.requestHandler = { _ in throw URLError(.notConnectedToInternet) }
+
+        client.previewGroupedLightColor(lightIds: [lightId], xy: CIEXYColor(x: 0.3, y: 0.5))
+        await #expect(throws: URLError.self) {
+            try await client.setGroupedLightColor(id: groupId, xy: CIEXYColor(x: 0.3, y: 0.5), lightIds: [lightId])
+        }
+        #expect(client.lights[0].color?.xy.x == 0.1)
+        client.applyEvents([
+            makeUpdateEvent(resource: HueEventResource(
+                id: lightId, type: "light", on: nil, dimming: nil,
+                color: HueEventColor(xy: CIEXYColor(x: 0.2, y: 0.3)),
+                colorTemperature: nil, status: nil, metadata: nil, speed: nil
+            )),
+        ])
+        #expect(client.lights[0].color?.xy.x == 0.2)
+    }
+
+    @Test func groupColorDebounceFlushesLatestPreviewOnDisappear() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+        let requests = LockedValue(0)
+        MockURLProtocol.requestHandler = { request in
+            requests.set(requests.get() + 1)
+            #expect(request.url?.path == "/clip/v2/resource/grouped_light/\(groupId)")
+            var data = request.httpBody ?? Data()
+            if let stream = request.httpBodyStream {
+                stream.open()
+                defer { stream.close() }
+                var buffer = [UInt8](repeating: 0, count: 1024)
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                try #require(count > 0)
+                data = Data(buffer.prefix(count))
+            }
+            let body = try JSONDecoder().decode([String: [String: [String: Double]]].self, from: data)
+            #expect(body["color"]?["xy"]?["x"] == 0.4)
+            #expect(body["color"]?["xy"]?["y"] == 0.5)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        let change = GroupColorChange()
+        change.schedule(client: client, id: groupId, lightIds: [lightId], xy: CIEXYColor(x: 0.2, y: 0.3))
+        change.schedule(client: client, id: groupId, lightIds: [lightId], xy: CIEXYColor(x: 0.4, y: 0.5))
+        #expect(client.lights[0].color?.xy.x == 0.4)
+        #expect(requests.get() == 0)
+        await change.flush()?.value
+        #expect(client.lights[0].color?.xy.x == 0.4)
+        #expect(requests.get() == 1)
+        #expect(change.flush() == nil)
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(requests.get() == 1)
+    }
+
+    @Test func groupColorDebounceSendsWithoutDisappear() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+        let requests = LockedValue(0)
+        MockURLProtocol.requestHandler = { request in
+            requests.set(requests.get() + 1)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        let change = GroupColorChange()
+        change.schedule(client: client, id: groupId, lightIds: [lightId], xy: CIEXYColor(x: 0.4, y: 0.5))
+        try await Task.sleep(for: .milliseconds(350))
+        #expect(requests.get() == 1)
+        #expect(client.lights[0].color?.xy.x == 0.4)
+        #expect(change.flush() == nil)
+    }
+
+    @Test(arguments: ["transport", "http", "bridge", "encoding", "cancelled"])
+    func groupColorErrorsReconcileAuthoritativeState(failure: String) async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+        MockURLProtocol.requestHandler = { request in
+            if request.httpMethod == "PUT" {
+                if failure == "transport" { throw URLError(.networkConnectionLost) }
+                if failure == "cancelled" { throw URLError(.cancelled) }
+                let response = HTTPURLResponse(
+                    url: request.url!, statusCode: failure == "http" ? 500 : 200,
+                    httpVersion: nil, headerFields: nil
+                )!
+                return (response, Data(#"{"errors":[{"description":"rejected"}],"data":[]}"#.utf8))
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let body = """
+            {"errors":[],"data":[{"id":"\(lightId)","owner":{"rid":"device-A","rtype":"device"},"metadata":{"name":"Lamp"},"on":{"on":true},"color":{"xy":{"x":0.1,"y":0.2}}}]}
+            """
+            return (response, Data(body.utf8))
+        }
+        let xy = CIEXYColor(x: failure == "encoding" ? .nan : 0.3, y: 0.5)
+        client.previewGroupedLightColor(lightIds: [lightId], xy: xy)
+        await #expect(throws: (any Error).self) {
+            try await client.setGroupedLightColor(id: groupId, xy: xy, lightIds: [lightId])
+        }
+        #expect(client.lights[0].color?.xy.x == 0.1)
+    }
+
+    @Test func groupColorOldFailureDoesNotOverwriteNewDrag() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+        let started = LockedValue(false)
+        let release = DispatchSemaphore(value: 0)
+        let requests = LockedValue(0)
+        MockURLProtocol.requestHandler = { request in
+            if request.httpMethod == "PUT" {
+                requests.set(requests.get() + 1)
+                if requests.get() == 1 {
+                    started.set(true)
+                    #expect(release.wait(timeout: .now() + 3) == .success)
+                    throw URLError(.networkConnectionLost)
+                }
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, Data())
+            }
+            throw URLError(.notConnectedToInternet)
+        }
+        let change = GroupColorChange()
+        change.schedule(client: client, id: groupId, lightIds: [lightId], xy: CIEXYColor(x: 0.2, y: 0.3))
+        let first = try #require(change.flush())
+        defer { release.signal() }
+        for _ in 0..<100 where !started.get() {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(started.get())
+        change.schedule(client: client, id: groupId, lightIds: [lightId], xy: CIEXYColor(x: 0.6, y: 0.3))
+        release.signal()
+        await first.value
+        #expect(client.lights[0].color?.xy.x == 0.6)
+        await change.flush()?.value
+        #expect(requests.get() == 2)
+        #expect(client.lights[0].color?.xy.x == 0.6)
+    }
+
+    @Test func groupColorFailureDoesNotOverwriteNewIndividualColor() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+        MockURLProtocol.requestHandler = { request in
+            if request.httpMethod == "PUT" {
+                let updated = DispatchSemaphore(value: 0)
+                Task { @MainActor in
+                    client.previewLightColor(id: lightId, xy: CIEXYColor(x: 0.6, y: 0.3))
+                    updated.signal()
+                }
+                #expect(updated.wait(timeout: .now() + 2) == .success)
+            }
+            throw URLError(.notConnectedToInternet)
+        }
+        await #expect(throws: URLError.self) {
+            try await client.setGroupedLightColor(id: groupId, xy: CIEXYColor(x: 0.2, y: 0.3), lightIds: [lightId])
+        }
+        #expect(client.lights[0].color?.xy.x == 0.6)
+    }
+
+    @Test func groupColorDebounceKeepsBridgeAndGroupCaptured() async throws {
+        let clientA = makeClient()
+        let clientB = makeClient()
+        let groupA = "00000000-0000-0000-0000-000000000014"
+        let groupB = "00000000-0000-0000-0000-000000000016"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        clientA.lights = [makeLight(id: lightId, name: "A", ownerRid: "device-A")]
+        clientB.lights = [makeLight(id: lightId, name: "B", ownerRid: "device-B")]
+        let paths = LockedValue<[String]>([])
+        MockURLProtocol.requestHandler = { request in
+            paths.set(paths.get() + [request.url!.path])
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        let change = GroupColorChange()
+        change.schedule(client: clientA, id: groupA, lightIds: [lightId], xy: CIEXYColor(x: 0.2, y: 0.3))
+        change.schedule(client: clientB, id: groupB, lightIds: [lightId], xy: CIEXYColor(x: 0.6, y: 0.3))
+        await change.flush()?.value
+        for _ in 0..<100 where paths.get().count < 2 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(Set(paths.get()) == Set([
+            "/clip/v2/resource/grouped_light/\(groupA)",
+            "/clip/v2/resource/grouped_light/\(groupB)",
+        ]))
+        #expect(clientA.lights[0].color?.xy.x == 0.2)
+        #expect(clientB.lights[0].color?.xy.x == 0.6)
+    }
+
+    @Test func groupColorCancelledRequestReconcilesDespiteCallerCancellation() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+        let started = LockedValue(false)
+        let release = DispatchSemaphore(value: 0)
+        MockURLProtocol.requestHandler = { request in
+            if request.httpMethod == "PUT" {
+                started.set(true)
+                #expect(release.wait(timeout: .now() + 3) == .success)
+                throw URLError(.cancelled)
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let body = """
+            {"errors":[],"data":[{"id":"\(lightId)","owner":{"rid":"device-A","rtype":"device"},"metadata":{"name":"Lamp"},"on":{"on":true},"color":{"xy":{"x":0.4,"y":0.5}}}]}
+            """
+            return (response, Data(body.utf8))
+        }
+        let send = Task {
+            try await client.setGroupedLightColor(id: groupId, xy: CIEXYColor(x: 0.4, y: 0.5), lightIds: [lightId])
+        }
+        defer { release.signal() }
+        for _ in 0..<100 where !started.get() {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(started.get())
+        send.cancel()
+        release.signal()
+        await #expect(throws: URLError.self) { try await send.value }
+        #expect(client.lights[0].color?.xy.x == 0.4)
+    }
+
+    @Test func groupColorFlushFailureRestoresOriginalAfterRepeatedPreviews() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000014"
+        let lightId = "00000000-0000-0000-0000-000000000015"
+        client.lights = [makeLight(id: lightId, name: "Lamp", ownerRid: "device-A")]
+        MockURLProtocol.requestHandler = { _ in throw URLError(.notConnectedToInternet) }
+        let change = GroupColorChange()
+        change.schedule(client: client, id: groupId, lightIds: [lightId], xy: CIEXYColor(x: 0.2, y: 0.3))
+        change.schedule(client: client, id: groupId, lightIds: [lightId], xy: CIEXYColor(x: 0.6, y: 0.3))
+        #expect(client.lights[0].color?.xy.x == 0.6)
+        await change.flush()?.value
+        #expect(client.lights[0].color == nil)
+    }
+
     @Test func inactiveSceneEventClearsTrackedActiveScene() {
         let client = makeClient()
         client.activeSceneId = "s1"
         client.activeSceneIsDynamic = true
         client.scenes = [makeScene(id: "s1", name: "Relax", groupId: "room-1", status: .dynamicPalette)]
 
-        client.applyEventsForTesting([
+        client.applyEvents([
             makeUpdateEvent(
                 resource: HueEventResource(
                     id: "s1",

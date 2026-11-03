@@ -1,13 +1,10 @@
 import SwiftUI
-import os
 
 struct RoomDetailView: View {
     enum GroupTarget {
         case room(Room)
         case zone(Zone)
     }
-
-    private static let logger = Logger(subsystem: "com.huebar", category: "RoomDetailView")
 
     @Bindable var apiClient: HueAPIClient
     let target: GroupTarget
@@ -22,7 +19,7 @@ struct RoomDetailView: View {
     @State private var isUserDraggingSpeed = false
     @State private var debounceTask: Task<Void, Never>?
     @State private var colorTempDebounceTask: Task<Void, Never>?
-    @State private var colorDebounceTask: Task<Void, Never>?
+    @State private var groupColorChange = GroupColorChange()
     @State private var speedDebounceTask: Task<Void, Never>?
     @State private var selectedLightId: String? = nil
 
@@ -295,7 +292,7 @@ struct RoomDetailView: View {
         .onDisappear {
             debounceTask?.cancel()
             colorTempDebounceTask?.cancel()
-            colorDebounceTask?.cancel()
+            groupColorChange.flush()
             speedDebounceTask?.cancel()
         }
     }
@@ -316,14 +313,7 @@ struct RoomDetailView: View {
     private func commitGroupColorChange(_ xy: CIEXYColor) {
         guard let id = groupedLightId else { return }
         let lightIds = colorLights.map(\.id)
-        apiClient.previewGroupedLightColor(lightIds: lightIds, xy: xy)
-        debounce(task: &colorDebounceTask) {
-            do {
-                try await apiClient.setGroupedLightColor(id: id, xy: xy, lightIds: lightIds)
-            } catch {
-                Self.logger.error("Failed to set color for grouped light \(id): \(error.localizedDescription)")
-            }
-        }
+        groupColorChange.schedule(client: apiClient, id: id, lightIds: lightIds, xy: xy)
     }
 
     private var toggleBinding: Binding<Bool> {
