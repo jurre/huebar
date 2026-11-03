@@ -89,9 +89,9 @@ struct LightRowView: View {
         )
         .padding(.horizontal)
         .onAppear {
-            sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
+            sliderBrightness = max(groupedLight?.displayBrightness ?? 0, 1)
         }
-        .onChange(of: groupedLight?.brightness) { _, newValue in
+        .onChange(of: groupedLight?.displayBrightness) { _, newValue in
             if let newValue, !isUserDragging {
                 sliderBrightness = max(newValue, 1)
             }
