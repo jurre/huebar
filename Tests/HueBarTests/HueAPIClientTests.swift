@@ -211,6 +211,57 @@ struct HueAPIClientTests {
         #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
     }
 
+    @Test func roomGroupedLightStaysOnUntilLastMemberLightTurnsOff() {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-0000000000a1"
+        configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1", "office-light-2"])
+
+        // Act & Assert
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: false))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == true)
+
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-2", on: false))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+    }
+
+    @Test func lightEventWithoutOnStateDoesNotRecomputeRoomGroupedLightState() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-0000000000a2"
+        configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1"])
+        stubSuccessfulResponses()
+        try await client.toggleGroupedLight(id: groupedLightId, on: false)
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+
+        // Act
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", brightness: 30))])
+
+        // Assert
+        #expect(client.lights.first?.dimming?.brightness == 30)
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+    }
+
+    @Test func memberLightEventsDoNotRevertPendingRoomToggle() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-0000000000a3"
+        configureOfficeRoom(client, groupedLightId: groupedLightId, lightIds: ["office-light-1", "office-light-2"])
+        stubSuccessfulResponses()
+        try await client.toggleGroupedLight(id: groupedLightId, on: false)
+
+        // Act & Assert: the first light reports off while the second is still cached as on
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: false))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-2", on: false))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == false)
+
+        // The toggle protection ends once the derived state agrees, so later changes still apply
+        client.applyEvents([makeUpdateEvent(resource: makeLightEventResource(id: "office-light-1", on: true))])
+        #expect(client.groupedLight(for: groupedLightId)?.isOn == true)
+    }
+
     @Test func toggleGroupedLightOptimisticUpdate() async throws {
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000001"
@@ -744,6 +795,42 @@ struct HueAPIClientTests {
             color: nil,
             colorTemperature: nil
         )
+    }
+
+    private func makeLightEventResource(id: String, on: Bool? = nil, brightness: Double? = nil) -> HueEventResource {
+        HueEventResource(
+            id: id,
+            type: "light",
+            on: on.map { OnState(on: $0) },
+            dimming: brightness.map { DimmingState(brightness: $0) },
+            color: nil,
+            colorTemperature: nil,
+            status: nil,
+            metadata: nil,
+            speed: nil
+        )
+    }
+
+    private func configureOfficeRoom(_ client: HueAPIClient, groupedLightId: String, lightIds: [String]) {
+        client.rooms = [
+            Room(
+                id: "office-room",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [ResourceLink(rid: groupedLightId, rtype: "grouped_light")],
+                children: lightIds.map { ResourceLink(rid: "device-\($0)", rtype: "device") }
+            ),
+        ]
+        client.groupedLights = [
+            GroupedLight(id: groupedLightId, on: OnState(on: true), dimming: DimmingState(brightness: 80), colorTemperature: nil),
+        ]
+        client.lights = lightIds.map { makeLight(id: $0, name: $0, ownerRid: "device-\($0)") }
+    }
+
+    private func stubSuccessfulResponses() {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"errors":[],"data":[]}"#.utf8))
+        }
     }
 
     private func makeUpdateEvent(resource: HueEventResource) -> HueEvent {

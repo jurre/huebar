@@ -473,9 +473,16 @@ final class HueAPIClient {
         refreshDebounceTask = nil
     }
 
-    private func handleEventStreamMessage(_ message: EventStreamMessage) async {
+    func handleEventStreamMessage(_ message: EventStreamMessage) async {
         switch message {
         case .reconnected:
+            // The full refresh supersedes a pending debounced one. Waiting for it to finish keeps its
+            // older snapshot from landing after ours.
+            if let pendingRefresh = refreshDebounceTask {
+                refreshDebounceTask = nil
+                pendingRefresh.cancel()
+                await pendingRefresh.value
+            }
             await fetchAll()
         case .events(let events):
             applyEvents(events)
@@ -494,7 +501,9 @@ final class HueAPIClient {
                     case "light":
                         let filteredResource = optimisticUpdates.filter(resource, kind: .light)
                         EventStreamUpdater.apply(filteredResource, to: &lights)
-                        syncGroupedLightOnState(containingLightId: resource.id)
+                        if filteredResource.on != nil {
+                            syncGroupedLightOnState(containingLightId: resource.id)
+                        }
                     case "scene":
                         if let status = resource.status?.active,
                            let resourceStatus = resource.status {
@@ -525,13 +534,25 @@ final class HueAPIClient {
         }
     }
 
+    /// Derives each containing group's on state from its member lights. The derived value is filtered
+    /// like a real `grouped_light` event so it can't override a toggle the user just made.
     private func syncGroupedLightOnState(containingLightId lightId: String) {
-        let affectedGroupedLightIds = groupedLightIds(containingLightId: lightId)
-        for groupedLightId in affectedGroupedLightIds {
-            guard let index = groupedLights.firstIndex(where: { $0.id == groupedLightId }) else { continue }
+        for groupedLightId in groupedLightIds(containingLightId: lightId) {
             let memberLights = lights(inGroupedLight: groupedLightId)
             guard !memberLights.isEmpty else { continue }
-            groupedLights[index].on = OnState(on: memberLights.contains(where: \.isOn))
+            let derivedState = HueEventResource(
+                id: groupedLightId,
+                type: "grouped_light",
+                on: OnState(on: memberLights.contains(where: \.isOn)),
+                dimming: nil,
+                color: nil,
+                colorTemperature: nil,
+                status: nil,
+                metadata: nil,
+                speed: nil
+            )
+            let filteredState = optimisticUpdates.filter(derivedState, kind: .groupedLight)
+            EventStreamUpdater.apply(filteredState, to: &groupedLights)
         }
     }
 

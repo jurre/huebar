@@ -69,11 +69,12 @@ final class EventStreamConnection: Sendable {
 
             let task = Task {
                 let parser = SSEParser()
-                var backoff: UInt64 = 1
+                var backoff = ReconnectBackoff()
                 var shouldResyncOnConnect = false
 
                 while !Task.isCancelled {
                     parser.reset()
+                    var connectedAt: ContinuousClock.Instant?
 
                     do {
                         var components = URLComponents()
@@ -95,7 +96,7 @@ final class EventStreamConnection: Sendable {
                             continuation.yield(.reconnected)
                             shouldResyncOnConnect = false
                         }
-                        backoff = 1
+                        connectedAt = .now
 
                         var lineBuffer = Data()
                         for try await byte in bytes {
@@ -109,17 +110,19 @@ final class EventStreamConnection: Sendable {
                                 lineBuffer.append(byte)
                             }
                         }
-                        shouldResyncOnConnect = true
+                        logger.info("Event stream closed by bridge \(bridgeIP, privacy: .private)")
                     } catch is CancellationError {
                         break
                     } catch {
                         logger.error("Event stream connection failed for \(bridgeIP, privacy: .private): \(error.localizedDescription, privacy: .public)")
-                        shouldResyncOnConnect = true
-                        do {
-                            try await Task.sleep(for: .seconds(backoff))
-                        } catch { break }
-                        backoff = min(backoff * 2, 30)
                     }
+
+                    // Missed events are recovered by a resync on the next successful connect.
+                    shouldResyncOnConnect = true
+                    let connectionDuration = connectedAt.map { ContinuousClock.now - $0 } ?? .zero
+                    do {
+                        try await Task.sleep(for: backoff.delay(afterConnectionLasting: connectionDuration))
+                    } catch { break }
                 }
 
                 continuation.finish()
