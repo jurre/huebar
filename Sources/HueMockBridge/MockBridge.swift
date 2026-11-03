@@ -29,6 +29,7 @@ final class MockBridge: @unchecked Sendable {
     // Indexed state for mutation
     private var lightStates: [String: (on: Bool, brightness: Double, mirek: Int)] = [:]
     private var groupedLightStates: [String: (on: Bool, brightness: Double, mirek: Int)] = [:]
+    private var groupedLightMembers: [String: [String]] = [:]
 
     init(name: String, rooms roomDefs: [MockRoomDef] = MockRoomDef.defaults) {
         self.bridgeName = name
@@ -158,6 +159,7 @@ final class MockBridge: @unchecked Sendable {
 
         let sceneDefs = ["Energize", "Relax", "Concentrate", "Nightlight", "Bright"]
         let lightArchetypes = ["sultan_bulb", "flood_bulb", "spot_bulb", "candle_bulb", "luster_bulb"]
+        var lightIdsByRoom: [[String]] = []
 
         for roomDef in roomDefs {
             let roomId = UUID().uuidString.lowercased()
@@ -185,9 +187,10 @@ final class MockBridge: @unchecked Sendable {
                 ]
                 lights.append(light)
                 lightStates[lightId] = (isOn, brightness, mirek)
-                childLinks.append(["rid": lightId, "rtype": "light"])
+                childLinks.append(["rid": deviceId, "rtype": "device"])
                 roomLightIds.append(lightId)
             }
+            lightIdsByRoom.append(roomLightIds)
 
             // Create grouped light
             let anyOn = roomLightIds.contains { lightStates[$0]?.on ?? false }
@@ -202,6 +205,7 @@ final class MockBridge: @unchecked Sendable {
             ]
             groupedLights.append(groupedLight)
             groupedLightStates[groupedLightId] = (anyOn, avgBrightness, firstMirek)
+            groupedLightMembers[groupedLightId] = roomLightIds
 
             // Create room
             let room: [String: Any] = [
@@ -248,12 +252,14 @@ final class MockBridge: @unchecked Sendable {
         ]
         groupedLights.append(zoneGroupedLight)
         groupedLightStates[zoneGroupId] = (true, 75, 300)
+        let zoneLightIds = lightIdsByRoom.prefix(2).flatMap { $0 }
+        groupedLightMembers[zoneGroupId] = zoneLightIds
 
         let zone: [String: Any] = [
             "id": zoneId,
             "metadata": ["name": "Downstairs", "archetype": "downstairs"],
             "services": [["rid": zoneGroupId, "rtype": "grouped_light"]],
-            "children": rooms.prefix(2).flatMap { ($0["children"] as? [[String: String]]) ?? [] },
+            "children": zoneLightIds.map { ["rid": $0, "rtype": "light"] },
         ]
         zones.append(zone)
     }
@@ -274,6 +280,11 @@ final class MockBridge: @unchecked Sendable {
             gl["dimming"] = ["brightness": brightness]
             groupedLights[index] = gl
             groupedLightStates[id]?.brightness = brightness
+        }
+        if let color = json["color"] {
+            for lightId in groupedLightMembers[id] ?? [] {
+                applyLightUpdate(id: lightId, json: ["color": color])
+            }
         }
     }
 

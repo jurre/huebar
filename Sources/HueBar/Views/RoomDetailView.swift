@@ -13,10 +13,13 @@ struct RoomDetailView: View {
     @State private var sliderBrightness: Double = 0
     @State private var sliderMirek: Int = 350
     @State private var sliderSpeed: Double = 0.5
+    @State private var groupColorXY: CIEXYColor = CIEXYColor(x: 0.3127, y: 0.3290)
+    @State private var showColorWheel = false
     @State private var isUserDraggingBrightness = false
     @State private var isUserDraggingSpeed = false
     @State private var debounceTask: Task<Void, Never>?
     @State private var colorTempDebounceTask: Task<Void, Never>?
+    @State private var groupColorChange = GroupColorChange()
     @State private var speedDebounceTask: Task<Void, Never>?
     @State private var selectedLightId: String? = nil
 
@@ -51,6 +54,18 @@ struct RoomDetailView: View {
         return roomLights.first(where: { $0.id == id })
     }
 
+    private var colorLights: [HueLight] {
+        roomLights.filter(\.supportsColor)
+    }
+
+    private var canChangeColor: Bool {
+        isOn && groupedLightId != nil && !colorLights.isEmpty
+    }
+
+    private var isColorWheelVisible: Bool {
+        showColorWheel && canChangeColor && selectedLight == nil
+    }
+
     private var activeSceneForGroup: HueScene? {
         apiClient.activeScene(for: groupId)
     }
@@ -77,6 +92,14 @@ struct RoomDetailView: View {
                 BackHeaderButton(title: name, action: onBack)
 
                 Spacer()
+
+                if canChangeColor {
+                    Button(action: toggleColorWheel) {
+                        Image(systemName: isColorWheelVisible ? "paintpalette.fill" : "paintpalette")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(isColorWheelVisible ? "Hide color picker" : "Show color picker")
+                }
 
                 Toggle("", isOn: toggleBinding)
                     .toggleStyle(.switch)
@@ -161,6 +184,17 @@ struct RoomDetailView: View {
             // Scrollable content: light detail or scenes + lights
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    // Color wheel for every light in the room or zone
+                    if isColorWheelVisible {
+                        SectionHeaderView(title: "COLOR")
+
+                        ColorWheelView(xy: $groupColorXY) { newXY in
+                            commitGroupColorChange(newXY)
+                        }
+                        .frame(height: 160)
+                        .frame(maxWidth: .infinity)
+                    }
+
                     // Light detail panel (replaces scenes when a light is selected)
                     if let selected = selectedLight {
                         LightDetailView(
@@ -253,10 +287,29 @@ struct RoomDetailView: View {
         .onDisappear {
             debounceTask?.cancel()
             colorTempDebounceTask?.cancel()
+            groupColorChange.flush()
             speedDebounceTask?.cancel()
         }
     }
 
+    private func toggleColorWheel() {
+        guard !isColorWheelVisible else {
+            showColorWheel = false
+            return
+        }
+        // Start the wheel at a color the group is actually showing
+        if let xy = (colorLights.first(where: \.isOn) ?? colorLights.first)?.color?.xy {
+            groupColorXY = xy
+        }
+        selectedLightId = nil
+        showColorWheel = true
+    }
+
+    private func commitGroupColorChange(_ xy: CIEXYColor) {
+        guard let id = groupedLightId else { return }
+        let lightIds = colorLights.map(\.id)
+        groupColorChange.schedule(client: apiClient, id: id, lightIds: lightIds, xy: xy)
+    }
 
     private var toggleBinding: Binding<Bool> {
         Binding(

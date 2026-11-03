@@ -19,7 +19,7 @@ Philips discontinued the official Hue macOS app years ago, and most third-party 
 - 🎚️ **Brightness Control** — Adjust brightness per room/zone with a slider
 - 🎨 **Scene Selection** — Browse and activate saved scenes in a color-coded grid
 - 💡 **Individual Lights** — See and control each light in a room with per-light on/off toggles and brightness
-- 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights
+- 🎨 **Color Picker** — Full color wheel and color temperature slider for individual lights, plus a color wheel for whole rooms and zones
 - 🌉 **Multi-Bridge Support** — Connect multiple Hue Bridges and control all your lights from one place
 - 📌 **Pin to Top** — Pin favorite rooms/zones to the top of the list
 - 🔀 **Custom Order** — Right-click any room or zone to Move Up/Down/Top/Bottom
@@ -102,6 +102,8 @@ swift run
 2. The app will search for your Hue Bridge on the network
 3. When your bridge is found, click it and press the **link button** on your physical Hue Bridge
 4. That's it — your rooms and zones appear with toggle switches, brightness sliders, scene selection, and individual light controls
+
+Room and zone color changes preview immediately and coalesce while dragging. Leaving the detail view sends the final selection; failed changes restore the last known color and reconcile with the bridge when reachable.
 
 ### Multiple Bridges
 
