@@ -74,15 +74,7 @@ struct RoomDetailView: View {
         VStack(spacing: 0) {
             // Header with back button and toggle
             HStack {
-                Button(action: onBack) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.body.weight(.semibold))
-                        Text(name)
-                            .font(.headline)
-                    }
-                }
-                .buttonStyle(.borderless)
+                BackHeaderButton(title: name, action: onBack)
 
                 Spacer()
 
@@ -164,7 +156,7 @@ struct RoomDetailView: View {
                 .padding(.bottom, 8)
             }
 
-            Divider()
+            HeaderDivider()
 
             // Scrollable content: light detail or scenes + lights
             ScrollView {
@@ -201,6 +193,7 @@ struct RoomDetailView: View {
                                     )
                                 }
                             }
+                            .hueGlassContainer(spacing: 8)
                         }
                     }
 
@@ -219,10 +212,12 @@ struct RoomDetailView: View {
                                 )
                             }
                         }
+                        .hueGlassContainer(spacing: 8)
                     }
                 }
                 .padding()
             }
+            .hueScrollEdge()
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
