@@ -226,11 +226,11 @@ struct RoomDetailView: View {
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
-            sliderBrightness = max(groupedLight?.brightness ?? 0, 1)
+            sliderBrightness = max(groupedLight?.displayBrightness ?? 0, 1)
             sliderMirek = groupedLight?.mirek ?? 350
             sliderSpeed = activeSceneForGroup?.speed ?? 0.5
         }
-        .onChange(of: groupedLight?.brightness) { _, newValue in
+        .onChange(of: groupedLight?.displayBrightness) { _, newValue in
             if let newValue, !isUserDraggingBrightness {
                 sliderBrightness = max(newValue, 1)
             }
