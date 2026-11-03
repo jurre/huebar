@@ -44,6 +44,40 @@ Philips discontinued the official Hue macOS app years ago, and most third-party 
 2. Unzip the file and move `HueBar.app` to your `/Applications` folder
 3. On first launch, **right-click → Open** (the app is ad-hoc signed, so Gatekeeper will ask once)
 
+### Install with Homebrew
+
+HueBar is available from the [AbdelrahmanHafez/homebrew-huebar](https://github.com/AbdelrahmanHafez/homebrew-huebar) tap:
+
+```bash
+brew install --cask AbdelrahmanHafez/huebar/huebar
+```
+
+Or tap it first:
+
+```bash
+brew tap AbdelrahmanHafez/huebar
+brew install --cask huebar
+```
+
+For Brewfile-based installs:
+
+```ruby
+tap "AbdelrahmanHafez/huebar"
+cask "huebar"
+```
+
+To upgrade:
+
+```bash
+brew upgrade --cask huebar
+```
+
+HueBar is currently ad-hoc signed. If macOS blocks the first launch, right-click `HueBar.app` in `/Applications` and choose **Open**, or run:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/HueBar.app
+```
+
 ### Install from source
 
 ```bash
