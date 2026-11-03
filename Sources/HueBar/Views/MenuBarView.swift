@@ -10,6 +10,7 @@ struct MenuBarView: View {
     @State private var selectedZone: Zone?
     @State private var selectedClient: HueAPIClient?
     @State private var showSettings = false
+    @State private var refreshTask: Task<Void, Never>?
 
     /// The primary bridge client (first connected bridge)
     private var primaryClient: HueAPIClient? {
@@ -58,6 +59,15 @@ struct MenuBarView: View {
         .frame(width: 300, height: 550)
         .clipped()
         .preferredColorScheme(.dark)
+        .onAppear {
+            guard refreshTask == nil else { return }
+            refreshTask = Task {
+                await bridgeManager.refreshAll()
+                await MainActor.run {
+                    refreshTask = nil
+                }
+            }
+        }
     }
 
     // MARK: - Room List

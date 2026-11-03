@@ -11,6 +11,8 @@ enum BridgeConnectionStatus: Sendable, Equatable {
 @Observable
 @MainActor
 final class BridgeConnection: Identifiable {
+    static let defaultRefreshInterval: TimeInterval = 30
+
     let id: String
     var name: String
     let client: HueAPIClient
@@ -19,19 +21,27 @@ final class BridgeConnection: Identifiable {
     private let initialRetryDelay: Duration
     /// Upper bound on the reconnect delay; exponential growth is clamped here.
     private let maxRetryDelay: Duration
+    /// Minimum time between user-triggered full refresh attempts.
+    private let minimumRefreshInterval: TimeInterval
+    private let currentDate: @MainActor () -> Date
     /// Number of consecutive failed connection attempts since the last successful connect.
     @ObservationIgnored private var retryAttempt: Int = 0
     @ObservationIgnored private var reconnectTask: Task<Void, Never>?
+    @ObservationIgnored private var lastFetchAllAttemptAt: Date?
 
     init(
         credentials: BridgeCredentials,
         initialRetryDelay: Duration = .seconds(5),
-        maxRetryDelay: Duration = .seconds(300)
+        maxRetryDelay: Duration = .seconds(300),
+        minimumRefreshInterval: TimeInterval = BridgeConnection.defaultRefreshInterval,
+        currentDate: @escaping @MainActor () -> Date = Date.init
     ) throws {
         self.id = credentials.id
         self.name = credentials.name
         self.initialRetryDelay = initialRetryDelay
         self.maxRetryDelay = maxRetryDelay
+        self.minimumRefreshInterval = minimumRefreshInterval
+        self.currentDate = currentDate
         self.client = try HueAPIClient(bridgeIP: credentials.bridgeIP, applicationKey: credentials.applicationKey)
     }
 
@@ -40,13 +50,17 @@ final class BridgeConnection: Identifiable {
         name: String,
         client: HueAPIClient,
         initialRetryDelay: Duration = .seconds(5),
-        maxRetryDelay: Duration = .seconds(300)
+        maxRetryDelay: Duration = .seconds(300),
+        minimumRefreshInterval: TimeInterval = BridgeConnection.defaultRefreshInterval,
+        currentDate: @escaping @MainActor () -> Date = Date.init
     ) {
         self.id = id
         self.name = name
         self.client = client
         self.initialRetryDelay = initialRetryDelay
         self.maxRetryDelay = maxRetryDelay
+        self.minimumRefreshInterval = minimumRefreshInterval
+        self.currentDate = currentDate
     }
 
     /// Connect to the bridge: fetch all data and start event stream
@@ -55,6 +69,7 @@ final class BridgeConnection: Identifiable {
         reconnectTask?.cancel()
         reconnectTask = nil
         status = .connecting
+        markFetchAllAttempt()
         await client.fetchAll()
         if let error = client.lastError {
             status = .error(error)
@@ -63,6 +78,19 @@ final class BridgeConnection: Identifiable {
             status = .connected
             retryAttempt = 0
             client.startEventStream()
+        }
+    }
+
+    /// Refresh bridge state even when the bridge is already connected.
+    func refresh() async {
+        guard status != .connecting, shouldStartRefresh() else { return }
+        switch status {
+        case .connected:
+            await refreshConnectedBridge()
+        case .disconnected, .error:
+            await connect()
+        case .connecting:
+            return
         }
     }
 
@@ -87,6 +115,30 @@ final class BridgeConnection: Identifiable {
             if delay >= maximum { return maximum }
         }
         return delay
+    }
+
+    private func refreshConnectedBridge() async {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        markFetchAllAttempt()
+        await client.fetchAll()
+        if let error = client.lastError {
+            status = .error(error)
+            client.stopEventStream()
+            scheduleReconnect()
+        } else {
+            status = .connected
+            retryAttempt = 0
+        }
+    }
+
+    private func shouldStartRefresh() -> Bool {
+        guard minimumRefreshInterval > 0, let lastFetchAllAttemptAt else { return true }
+        return currentDate().timeIntervalSince(lastFetchAllAttemptAt) >= minimumRefreshInterval
+    }
+
+    private func markFetchAllAttempt() {
+        lastFetchAllAttemptAt = currentDate()
     }
 
     private func scheduleReconnect() {
