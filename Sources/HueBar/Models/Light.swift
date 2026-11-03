@@ -18,6 +18,8 @@ struct HueLight: Decodable, Sendable, Identifiable {
     var name: String { metadata.name }
     var isOn: Bool { on.on }
     var brightness: Double { dimming?.brightness ?? 0.0 }
+    /// Off-state presentation must not overwrite the bridge's retained dimming level.
+    var displayBrightness: Double { isOn ? brightness : 0 }
 
     /// Vivid color for display indicators (colored dots)
     var displayColor: Color {

@@ -614,10 +614,6 @@ final class HueAPIClient {
         optimisticUpdates.record(.on(on), for: .light, id: id)
         if let index = lights.firstIndex(where: { $0.id == id }) {
             lights[index].on = OnState(on: on)
-            if !on, lights[index].dimming != nil {
-                optimisticUpdates.record(.brightness(0), for: .light, id: id)
-                lights[index].dimming = DimmingState(brightness: 0)
-            }
         }
     }
 
@@ -652,10 +648,6 @@ final class HueAPIClient {
         optimisticUpdates.record(.on(on), for: .groupedLight, id: id)
         if let index = groupedLights.firstIndex(where: { $0.id == id }) {
             groupedLights[index].on = OnState(on: on)
-            if !on, groupedLights[index].dimming != nil {
-                optimisticUpdates.record(.brightness(0), for: .groupedLight, id: id)
-                groupedLights[index].dimming = DimmingState(brightness: 0)
-            }
         }
     }
 
@@ -666,10 +658,6 @@ final class HueAPIClient {
             let lightId = lights[index].id
             optimisticUpdates.record(.on(on), for: .light, id: lightId)
             lights[index].on = OnState(on: on)
-            if !on, lights[index].dimming != nil {
-                optimisticUpdates.record(.brightness(0), for: .light, id: lightId)
-                lights[index].dimming = DimmingState(brightness: 0)
-            }
         }
     }
 
@@ -689,12 +677,10 @@ final class HueAPIClient {
 
     private func clearOptimisticLightToggle(id: String) {
         optimisticUpdates.clear(.on, for: .light, id: id)
-        optimisticUpdates.clear(.brightness, for: .light, id: id)
     }
 
     private func clearOptimisticGroupedLightToggle(id: String) {
         optimisticUpdates.clear(.on, for: .groupedLight, id: id)
-        optimisticUpdates.clear(.brightness, for: .groupedLight, id: id)
     }
 
     private func clearOptimisticLightToggles(withIds lightIds: Set<String>) {

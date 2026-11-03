@@ -318,7 +318,7 @@ struct HueAPIClientTests {
         try await client.toggleGroupedLight(id: validId, on: false)
         #expect(observedStateBeforeResponse.get() == false)
         #expect(client.groupedLights.first?.isOn == false)
-        #expect(client.groupedLights.first?.brightness == 0)
+        #expect(client.groupedLights.first?.brightness == 80)
     }
 
     @Test func toggleGroupedLightOnPreservesOptimisticBrightness() async throws {
@@ -379,7 +379,7 @@ struct HueAPIClientTests {
         // Assert
         let officeLights = client.lights.filter { $0.id.hasPrefix("office-light") }
         #expect(officeLights.allSatisfy { $0.isOn == false })
-        #expect(officeLights.allSatisfy { $0.brightness == 0 })
+        #expect(officeLights.allSatisfy { $0.brightness == 50 })
         #expect(client.lights.first(where: { $0.id == "kitchen-light-1" })?.isOn == true)
         #expect(client.lights.first(where: { $0.id == "kitchen-light-1" })?.brightness == 50)
     }
@@ -687,7 +687,7 @@ struct HueAPIClientTests {
         try await client.toggleLight(id: validId, on: false)
         #expect(observedStateBeforeResponse.get() == false)
         #expect(client.lights.first?.isOn == false)
-        #expect(client.lights.first?.brightness == 0)
+        #expect(client.lights.first?.brightness == 50)
     }
 
     @Test func toggleLightOnPreservesOptimisticBrightness() async throws {
@@ -711,6 +711,112 @@ struct HueAPIClientTests {
         // Assert
         #expect(client.lights.first?.isOn == true)
         #expect(client.lights.first?.brightness == 35)
+    }
+
+    @Test func toggleLightOffThenOnPreservesDimmingAndAcceptsBrightnessEvents() async throws {
+        let client = makeClient()
+        let id = "00000000-0000-0000-0000-000000000022"
+        client.lights = [makeLight(id: id, name: "Lamp", ownerRid: "device-A")]
+        stubSuccessfulResponses()
+
+        try await client.toggleLight(id: id, on: false)
+        #expect(client.lights[0].dimming?.brightness == 50)
+        #expect(!client.lights[0].isOn)
+        #expect(client.lights[0].displayBrightness == 0)
+        try await client.toggleLight(id: id, on: true)
+        #expect(client.lights[0].brightness == 50)
+        #expect(client.lights[0].displayBrightness == 50)
+
+        client.applyEvents([
+            makeUpdateEvent(resource: HueEventResource(
+                id: id, type: "light", on: OnState(on: false),
+                dimming: DimmingState(brightness: 65), color: nil, colorTemperature: nil,
+                status: nil, metadata: nil, speed: nil
+            )),
+        ])
+        #expect(client.lights[0].isOn)
+        #expect(client.lights[0].brightness == 65)
+    }
+
+    @Test(arguments: [false, true])
+    func toggleGroupOffThenOnPreservesMemberDimmingAndAcceptsBrightnessEvents(isZone: Bool) async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000023"
+        let memberId = "00000000-0000-0000-0000-000000000024"
+        let services = [ResourceLink(rid: groupId, rtype: "grouped_light")]
+        if isZone {
+            client.zones = [Zone(
+                id: "zone", metadata: GroupMetadata(name: "Zone", archetype: "home"),
+                services: services, children: [ResourceLink(rid: memberId, rtype: "light")]
+            )]
+        } else {
+            client.rooms = [Room(
+                id: "room", metadata: GroupMetadata(name: "Room", archetype: "office"),
+                services: services, children: [ResourceLink(rid: "device-A", rtype: "device")]
+            )]
+        }
+        client.groupedLights = [
+            GroupedLight(id: groupId, on: OnState(on: true), dimming: DimmingState(brightness: 80), colorTemperature: nil),
+        ]
+        client.lights = [
+            makeLight(id: memberId, name: "Member", ownerRid: "device-A"),
+            makeLight(id: "other-light", name: "Other", ownerRid: "device-B"),
+        ]
+        stubSuccessfulResponses()
+
+        try await client.toggleGroupedLight(id: groupId, on: false)
+        #expect(!client.groupedLights[0].isOn)
+        #expect(!client.lights[0].isOn)
+        #expect(client.groupedLights[0].dimming?.brightness == 80)
+        #expect(client.lights[0].dimming?.brightness == 50)
+        #expect(client.groupedLights[0].displayBrightness == 0)
+        #expect(client.lights[0].displayBrightness == 0)
+        #expect(client.lights[1].isOn)
+
+        try await client.toggleGroupedLight(id: groupId, on: true)
+        #expect(client.groupedLights[0].brightness == 80)
+        #expect(client.lights[0].brightness == 50)
+        #expect(client.groupedLights[0].displayBrightness == 80)
+        #expect(client.lights[0].displayBrightness == 50)
+        for (id, type) in [(groupId, "grouped_light"), (memberId, "light")] {
+            client.applyEvents([
+                makeUpdateEvent(resource: HueEventResource(
+                    id: id, type: type, on: OnState(on: false),
+                    dimming: DimmingState(brightness: 65), color: nil, colorTemperature: nil,
+                    status: nil, metadata: nil, speed: nil
+                )),
+            ])
+        }
+        #expect(client.groupedLights[0].isOn)
+        #expect(client.lights[0].isOn)
+        #expect(client.groupedLights[0].brightness == 65)
+        #expect(client.lights[0].brightness == 65)
+        #expect(client.lights[1].brightness == 50)
+    }
+
+    @Test func togglesPreservePendingBrightnessProtection() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000025"
+        let lightId = "00000000-0000-0000-0000-000000000026"
+        configureOfficeRoom(client, groupedLightId: groupId, lightIds: [lightId])
+        stubSuccessfulResponses()
+        client.previewBrightness(groupedLightId: groupId, brightness: 70)
+        client.previewLightBrightness(id: lightId, brightness: 40)
+
+        try await client.toggleGroupedLight(id: groupId, on: false)
+        try await client.toggleLight(id: lightId, on: true)
+        try await client.toggleGroupedLight(id: groupId, on: true)
+        for (id, type) in [(groupId, "grouped_light"), (lightId, "light")] {
+            client.applyEvents([
+                makeUpdateEvent(resource: HueEventResource(
+                    id: id, type: type, on: nil,
+                    dimming: DimmingState(brightness: 10), color: nil, colorTemperature: nil,
+                    status: nil, metadata: nil, speed: nil
+                )),
+            ])
+        }
+        #expect(client.groupedLights[0].brightness == 70)
+        #expect(client.lights[0].brightness == 40)
     }
 
     @Test func setLightBrightnessClamping() async throws {

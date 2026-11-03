@@ -5,6 +5,25 @@ import Testing
 struct ModelDecodingTests {
     private let decoder = JSONDecoder()
 
+    @Test(arguments: [nil, 0.0, 35.0, 100.0] as [Double?])
+    func displayBrightnessKeepsDimmingIndependentOfPower(brightness: Double?) {
+        let dimming = brightness.map { DimmingState(brightness: $0) }
+        var group = GroupedLight(id: "group", on: nil, dimming: dimming, colorTemperature: nil)
+        var light = HueLight(
+            id: "light", owner: ResourceLink(rid: "device", rtype: "device"),
+            metadata: LightMetadata(name: "Lamp", archetype: nil),
+            on: OnState(on: false), dimming: dimming, color: nil, colorTemperature: nil
+        )
+        #expect(group.displayBrightness == 0)
+        #expect(light.displayBrightness == 0)
+        group.on = OnState(on: true)
+        light.on = OnState(on: true)
+        #expect(group.displayBrightness == (brightness ?? 0))
+        #expect(light.displayBrightness == (brightness ?? 0))
+        #expect(group.dimming?.brightness == brightness)
+        #expect(light.dimming?.brightness == brightness)
+    }
+
     @Test func roomDecoding() throws {
         let json = """
         {"id":"abc-123","metadata":{"name":"Living Room","archetype":"living_room"},"services":[{"rid":"gl-1","rtype":"grouped_light"},{"rid":"light-1","rtype":"light"}],"children":[{"rid":"light-1","rtype":"device"}]}
