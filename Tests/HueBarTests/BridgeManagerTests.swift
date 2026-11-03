@@ -78,6 +78,7 @@ extension CredentialStoreTests {
     @Test func bridgeConnectionRetriesAfterTransientNetworkFailure() async throws {
         // Arrange
         let context = createRetryTestContext()
+        defer { BridgeConnectionRetryURLProtocol.requestHandler = nil }
 
         // Act
         await context.connection.connect()
@@ -96,6 +97,78 @@ extension CredentialStoreTests {
         #expect(context.requestCount() >= 10)
 
         context.connection.disconnect()
+    }
+
+    @Test func bridgeConnectionRefreshUpdatesConnectedBridgeState() async throws {
+        // Arrange
+        let context = createRefreshTestContext(groupedLightIsOn: true)
+        defer { BridgeConnectionRetryURLProtocol.requestHandler = nil }
+        context.connection.status = .connected
+        context.client.groupedLights = [
+            GroupedLight(id: "gl-1", on: OnState(on: false), dimming: DimmingState(brightness: 0), colorTemperature: nil),
+        ]
+
+        // Act
+        await context.connection.refresh()
+
+        // Assert
+        #expect(context.connection.status == .connected)
+        #expect(context.client.groupedLights.first?.isOn == true)
+        #expect(context.client.groupedLights.first?.brightness == 75)
+        #expect(context.requestCount() == 5)
+    }
+
+    @Test func bridgeConnectionRefreshSkipsConnectedBridgeWithinCooldown() async throws {
+        // Arrange
+        var currentDate = Date(timeIntervalSince1970: 100)
+        let context = createRefreshTestContext(
+            groupedLightIsOn: true,
+            minimumRefreshInterval: 30,
+            currentDate: { currentDate }
+        )
+        defer { BridgeConnectionRetryURLProtocol.requestHandler = nil }
+        context.connection.status = .connected
+        context.client.groupedLights = [
+            GroupedLight(id: "gl-1", on: OnState(on: false), dimming: DimmingState(brightness: 0), colorTemperature: nil),
+        ]
+
+        // Act
+        await context.connection.refresh()
+        context.client.groupedLights = [
+            GroupedLight(id: "gl-1", on: OnState(on: false), dimming: DimmingState(brightness: 0), colorTemperature: nil),
+        ]
+        currentDate = Date(timeIntervalSince1970: 110)
+        await context.connection.refresh()
+        let requestCountAfterCooldownSkip = context.requestCount()
+        let isOnAfterCooldownSkip = context.client.groupedLights.first?.isOn
+        currentDate = Date(timeIntervalSince1970: 131)
+        await context.connection.refresh()
+
+        // Assert
+        #expect(requestCountAfterCooldownSkip == 5)
+        #expect(isOnAfterCooldownSkip == false)
+        #expect(context.connection.status == .connected)
+        #expect(context.client.groupedLights.first?.isOn == true)
+        #expect(context.client.groupedLights.first?.brightness == 75)
+        #expect(context.requestCount() == 10)
+    }
+
+    @Test func bridgeManagerRefreshAllRefreshesConnectedBridges() async throws {
+        // Arrange
+        let context = createRefreshTestContext(groupedLightIsOn: true)
+        defer { BridgeConnectionRetryURLProtocol.requestHandler = nil }
+        context.connection.status = .connected
+        context.client.groupedLights = [
+            GroupedLight(id: "gl-1", on: OnState(on: false), dimming: DimmingState(brightness: 0), colorTemperature: nil),
+        ]
+        let manager = BridgeManager(bridges: [context.connection])
+
+        // Act
+        await manager.refreshAll()
+
+        // Assert
+        #expect(context.client.groupedLights.first?.isOn == true)
+        #expect(context.requestCount() == 5)
     }
 
     @Test func bridgeConnectionRetryDelayDoublesThenCaps() {
@@ -119,24 +192,46 @@ extension CredentialStoreTests {
         )
     }
 
+    private func createRefreshTestContext(
+        groupedLightIsOn: Bool,
+        minimumRefreshInterval: TimeInterval = 30,
+        currentDate: @escaping @MainActor () -> Date = Date.init
+    ) -> (
+        connection: BridgeConnection,
+        client: HueAPIClient,
+        requestCount: () -> Int
+    ) {
+        createBridgeConnectionContext { request, _ in
+            let path = request.url?.path ?? ""
+            let json: String
+            if path.hasSuffix("/room") {
+                json = #"{"errors":[],"data":[{"id":"room-1","metadata":{"name":"Office","archetype":"office"},"services":[{"rid":"gl-1","rtype":"grouped_light"}],"children":[]}]}"#
+            } else if path.hasSuffix("/grouped_light") {
+                json = #"{"errors":[],"data":[{"id":"gl-1","on":{"on":\#(groupedLightIsOn)},"dimming":{"brightness":75.0}}]}"#
+            } else {
+                json = #"{"errors":[],"data":[]}"#
+            }
+
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(json.utf8))
+        } makeConnection: { client in
+            BridgeConnection(
+                id: "office-bridge",
+                name: "Office Bridge",
+                client: client,
+                initialRetryDelay: .milliseconds(10),
+                minimumRefreshInterval: minimumRefreshInterval,
+                currentDate: currentDate
+            )
+        }
+    }
+
     private func createRetryTestContext() -> (
         connection: BridgeConnection,
         client: HueAPIClient,
         requestCount: () -> Int
     ) {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [BridgeConnectionRetryURLProtocol.self]
-        let session = URLSession(configuration: config)
-        let client = HueAPIClient(bridgeIP: "127.0.0.1:1234", applicationKey: "test-key", session: session)
-
-        let lock = NSLock()
-        var requestCount = 0
-        BridgeConnectionRetryURLProtocol.requestHandler = { request in
-            lock.lock()
-            requestCount += 1
-            let currentRequestCount = requestCount
-            lock.unlock()
-
+        createBridgeConnectionContext { request, currentRequestCount in
             if currentRequestCount <= 5 {
                 throw URLError(.notConnectedToInternet)
             }
@@ -154,8 +249,33 @@ extension CredentialStoreTests {
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data(json.utf8))
         }
+    }
 
-        let connection = BridgeConnection(
+    private func createBridgeConnectionContext(
+        handler: @escaping @Sendable (URLRequest, Int) throws -> (HTTPURLResponse, Data),
+        makeConnection: ((HueAPIClient) -> BridgeConnection)? = nil
+    ) -> (
+        connection: BridgeConnection,
+        client: HueAPIClient,
+        requestCount: () -> Int
+    ) {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [BridgeConnectionRetryURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let client = HueAPIClient(bridgeIP: "127.0.0.1:1234", applicationKey: "test-key", session: session)
+
+        let lock = NSLock()
+        var requestCount = 0
+        BridgeConnectionRetryURLProtocol.requestHandler = { request in
+            lock.lock()
+            requestCount += 1
+            let currentRequestCount = requestCount
+            lock.unlock()
+
+            return try handler(request, currentRequestCount)
+        }
+
+        let connection = makeConnection?(client) ?? BridgeConnection(
             id: "office-bridge",
             name: "Office Bridge",
             client: client,

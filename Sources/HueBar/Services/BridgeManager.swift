@@ -5,6 +5,10 @@ import Foundation
 final class BridgeManager {
     private(set) var bridges: [BridgeConnection] = []
 
+    init(bridges: [BridgeConnection] = []) {
+        self.bridges = bridges
+    }
+
     /// Whether any bridge is currently loading
     var isLoading: Bool {
         bridges.contains { $0.status == .disconnected || $0.status == .connecting }
@@ -70,6 +74,13 @@ final class BridgeManager {
     func connectAll() async {
         for bridge in bridges {
             await bridge.connect()
+        }
+    }
+
+    /// Refresh all bridges, including bridges already marked connected.
+    func refreshAll() async {
+        for bridge in bridges {
+            await bridge.refresh()
         }
     }
 }
