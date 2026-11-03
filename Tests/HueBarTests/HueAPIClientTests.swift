@@ -280,6 +280,7 @@ struct HueAPIClientTests {
     }
 
     @Test func toggleGroupedLightOptimisticUpdate() async throws {
+        // Arrange
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000001"
         client.groupedLights = [
@@ -313,9 +314,120 @@ struct HueAPIClientTests {
             return (response, Data())
         }
 
+        // Act
         try await client.toggleGroupedLight(id: validId, on: false)
         #expect(observedStateBeforeResponse.get() == false)
         #expect(client.groupedLights.first?.isOn == false)
+        #expect(client.groupedLights.first?.brightness == 80)
+    }
+
+    @Test func toggleGroupedLightOnPreservesOptimisticBrightness() async throws {
+        // Arrange
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000002"
+        client.groupedLights = [
+            GroupedLight(id: validId, on: OnState(on: false), dimming: DimmingState(brightness: 35.0), colorTemperature: nil),
+        ]
+
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Act
+        try await client.toggleGroupedLight(id: validId, on: true)
+
+        // Assert
+        #expect(client.groupedLights.first?.isOn == true)
+        #expect(client.groupedLights.first?.brightness == 35)
+    }
+
+    @Test func toggleGroupedLightOffOptimisticallyUpdatesRoomLights() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-000000000003"
+        client.rooms = [
+            Room(
+                id: "office-room",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [ResourceLink(rid: groupedLightId, rtype: "grouped_light")],
+                children: [
+                    ResourceLink(rid: "office-device-1", rtype: "device"),
+                    ResourceLink(rid: "office-device-2", rtype: "device"),
+                ]
+            ),
+        ]
+        client.groupedLights = [
+            GroupedLight(id: groupedLightId, on: OnState(on: true), dimming: DimmingState(brightness: 80.0), colorTemperature: nil),
+        ]
+        client.lights = [
+            makeLight(id: "office-light-1", name: "Office Desk", ownerRid: "office-device-1"),
+            makeLight(id: "office-light-2", name: "Office Ceiling", ownerRid: "office-device-2"),
+            makeLight(id: "kitchen-light-1", name: "Kitchen", ownerRid: "kitchen-device-1"),
+        ]
+
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Act
+        try await client.toggleGroupedLight(id: groupedLightId, on: false)
+
+        // Assert
+        let officeLights = client.lights.filter { $0.id.hasPrefix("office-light") }
+        #expect(officeLights.allSatisfy { $0.isOn == false })
+        #expect(officeLights.allSatisfy { $0.brightness == 50 })
+        #expect(client.lights.first(where: { $0.id == "kitchen-light-1" })?.isOn == true)
+        #expect(client.lights.first(where: { $0.id == "kitchen-light-1" })?.brightness == 50)
+    }
+
+    @Test func toggleGroupedLightOnOptimisticallyUpdatesRoomLights() async throws {
+        // Arrange
+        let client = makeClient()
+        let groupedLightId = "00000000-0000-0000-0000-000000000004"
+        client.rooms = [
+            Room(
+                id: "office-room",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [ResourceLink(rid: groupedLightId, rtype: "grouped_light")],
+                children: [
+                    ResourceLink(rid: "office-device-1", rtype: "device"),
+                    ResourceLink(rid: "office-device-2", rtype: "device"),
+                ]
+            ),
+        ]
+        client.groupedLights = [
+            GroupedLight(id: groupedLightId, on: OnState(on: false), dimming: DimmingState(brightness: 35.0), colorTemperature: nil),
+        ]
+        client.lights = [
+            makeLight(id: "office-light-1", name: "Office Desk", ownerRid: "office-device-1"),
+            makeLight(id: "office-light-2", name: "Office Ceiling", ownerRid: "office-device-2"),
+            makeLight(id: "kitchen-light-1", name: "Kitchen", ownerRid: "kitchen-device-1"),
+        ]
+        client.lights[0].on = OnState(on: false)
+        client.lights[0].dimming = DimmingState(brightness: 25)
+        client.lights[1].on = OnState(on: false)
+        client.lights[1].dimming = DimmingState(brightness: 45)
+        client.lights[2].on = OnState(on: false)
+
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Act
+        try await client.toggleGroupedLight(id: groupedLightId, on: true)
+
+        // Assert
+        let officeLights = client.lights.filter { $0.id.hasPrefix("office-light") }
+        #expect(officeLights.allSatisfy { $0.isOn == true })
+        #expect(client.lights.first(where: { $0.id == "office-light-1" })?.brightness == 25)
+        #expect(client.lights.first(where: { $0.id == "office-light-2" })?.brightness == 45)
+        #expect(client.lights.first(where: { $0.id == "kitchen-light-1" })?.isOn == false)
     }
 
     @Test func fetchRoomsHTTPError() async throws {
@@ -552,6 +664,7 @@ struct HueAPIClientTests {
     // MARK: - Light control tests
 
     @Test func toggleLightOptimisticUpdate() async throws {
+        // Arrange
         let client = makeClient()
         let validId = "00000000-0000-0000-0000-000000000001"
         client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
@@ -570,9 +683,140 @@ struct HueAPIClientTests {
             return (response, Data())
         }
 
+        // Act
         try await client.toggleLight(id: validId, on: false)
         #expect(observedStateBeforeResponse.get() == false)
         #expect(client.lights.first?.isOn == false)
+        #expect(client.lights.first?.brightness == 50)
+    }
+
+    @Test func toggleLightOnPreservesOptimisticBrightness() async throws {
+        // Arrange
+        let client = makeClient()
+        let validId = "00000000-0000-0000-0000-000000000002"
+        client.lights = [makeLight(id: validId, name: "Lamp", ownerRid: "device-A")]
+        client.lights[0].on = OnState(on: false)
+        client.lights[0].dimming = DimmingState(brightness: 35)
+
+        MockURLProtocol.requestHandler = { request in
+            #expect(request.httpMethod == "PUT")
+            #expect(request.url?.absoluteString.contains("/clip/v2/resource/light/\(validId)") == true)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+
+        // Act
+        try await client.toggleLight(id: validId, on: true)
+
+        // Assert
+        #expect(client.lights.first?.isOn == true)
+        #expect(client.lights.first?.brightness == 35)
+    }
+
+    @Test func toggleLightOffThenOnPreservesDimmingAndAcceptsBrightnessEvents() async throws {
+        let client = makeClient()
+        let id = "00000000-0000-0000-0000-000000000022"
+        client.lights = [makeLight(id: id, name: "Lamp", ownerRid: "device-A")]
+        stubSuccessfulResponses()
+
+        try await client.toggleLight(id: id, on: false)
+        #expect(client.lights[0].dimming?.brightness == 50)
+        #expect(!client.lights[0].isOn)
+        #expect(client.lights[0].displayBrightness == 0)
+        try await client.toggleLight(id: id, on: true)
+        #expect(client.lights[0].brightness == 50)
+        #expect(client.lights[0].displayBrightness == 50)
+
+        client.applyEvents([
+            makeUpdateEvent(resource: HueEventResource(
+                id: id, type: "light", on: OnState(on: false),
+                dimming: DimmingState(brightness: 65), color: nil, colorTemperature: nil,
+                status: nil, metadata: nil, speed: nil
+            )),
+        ])
+        #expect(client.lights[0].isOn)
+        #expect(client.lights[0].brightness == 65)
+    }
+
+    @Test(arguments: [false, true])
+    func toggleGroupOffThenOnPreservesMemberDimmingAndAcceptsBrightnessEvents(isZone: Bool) async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000023"
+        let memberId = "00000000-0000-0000-0000-000000000024"
+        let services = [ResourceLink(rid: groupId, rtype: "grouped_light")]
+        if isZone {
+            client.zones = [Zone(
+                id: "zone", metadata: GroupMetadata(name: "Zone", archetype: "home"),
+                services: services, children: [ResourceLink(rid: memberId, rtype: "light")]
+            )]
+        } else {
+            client.rooms = [Room(
+                id: "room", metadata: GroupMetadata(name: "Room", archetype: "office"),
+                services: services, children: [ResourceLink(rid: "device-A", rtype: "device")]
+            )]
+        }
+        client.groupedLights = [
+            GroupedLight(id: groupId, on: OnState(on: true), dimming: DimmingState(brightness: 80), colorTemperature: nil),
+        ]
+        client.lights = [
+            makeLight(id: memberId, name: "Member", ownerRid: "device-A"),
+            makeLight(id: "other-light", name: "Other", ownerRid: "device-B"),
+        ]
+        stubSuccessfulResponses()
+
+        try await client.toggleGroupedLight(id: groupId, on: false)
+        #expect(!client.groupedLights[0].isOn)
+        #expect(!client.lights[0].isOn)
+        #expect(client.groupedLights[0].dimming?.brightness == 80)
+        #expect(client.lights[0].dimming?.brightness == 50)
+        #expect(client.groupedLights[0].displayBrightness == 0)
+        #expect(client.lights[0].displayBrightness == 0)
+        #expect(client.lights[1].isOn)
+
+        try await client.toggleGroupedLight(id: groupId, on: true)
+        #expect(client.groupedLights[0].brightness == 80)
+        #expect(client.lights[0].brightness == 50)
+        #expect(client.groupedLights[0].displayBrightness == 80)
+        #expect(client.lights[0].displayBrightness == 50)
+        for (id, type) in [(groupId, "grouped_light"), (memberId, "light")] {
+            client.applyEvents([
+                makeUpdateEvent(resource: HueEventResource(
+                    id: id, type: type, on: OnState(on: false),
+                    dimming: DimmingState(brightness: 65), color: nil, colorTemperature: nil,
+                    status: nil, metadata: nil, speed: nil
+                )),
+            ])
+        }
+        #expect(client.groupedLights[0].isOn)
+        #expect(client.lights[0].isOn)
+        #expect(client.groupedLights[0].brightness == 65)
+        #expect(client.lights[0].brightness == 65)
+        #expect(client.lights[1].brightness == 50)
+    }
+
+    @Test func togglesPreservePendingBrightnessProtection() async throws {
+        let client = makeClient()
+        let groupId = "00000000-0000-0000-0000-000000000025"
+        let lightId = "00000000-0000-0000-0000-000000000026"
+        configureOfficeRoom(client, groupedLightId: groupId, lightIds: [lightId])
+        stubSuccessfulResponses()
+        client.previewBrightness(groupedLightId: groupId, brightness: 70)
+        client.previewLightBrightness(id: lightId, brightness: 40)
+
+        try await client.toggleGroupedLight(id: groupId, on: false)
+        try await client.toggleLight(id: lightId, on: true)
+        try await client.toggleGroupedLight(id: groupId, on: true)
+        for (id, type) in [(groupId, "grouped_light"), (lightId, "light")] {
+            client.applyEvents([
+                makeUpdateEvent(resource: HueEventResource(
+                    id: id, type: type, on: nil,
+                    dimming: DimmingState(brightness: 10), color: nil, colorTemperature: nil,
+                    status: nil, metadata: nil, speed: nil
+                )),
+            ])
+        }
+        #expect(client.groupedLights[0].brightness == 70)
+        #expect(client.lights[0].brightness == 40)
     }
 
     @Test func setLightBrightnessClamping() async throws {
@@ -656,17 +900,78 @@ struct HueAPIClientTests {
 
     // MARK: - activeScene(for:) tests
 
-    private func makeScene(id: String, name: String, groupId: String, status: HueSceneActiveState?, speed: Double? = nil, autoDynamic: Bool? = nil) -> HueScene {
+    private func makeScene(
+        id: String,
+        name: String,
+        groupId: String,
+        status: HueSceneActiveState?,
+        palette: HueScenePalette? = nil,
+        speed: Double? = nil,
+        autoDynamic: Bool? = nil
+    ) -> HueScene {
         HueScene(
             id: id,
             type: "scene",
             metadata: HueSceneMetadata(name: name, image: nil),
             group: ResourceLink(rid: groupId, rtype: "room"),
             status: status.map { HueSceneStatus(active: $0) },
-            palette: nil,
+            palette: palette,
             speed: speed,
             autoDynamic: autoDynamic
         )
+    }
+
+    private func makeColorPalette(_ colors: [CIEXYColor]) -> HueScenePalette {
+        HueScenePalette(
+            color: colors.map { HueScenePaletteColor(color: HueColorValue(xy: $0), dimming: nil) },
+            dimming: [],
+            colorTemperature: []
+        )
+    }
+
+    private struct TemperatureStop: Equatable {
+        let mirek: Int
+        let brightness: Double?
+    }
+
+    private func makeTemperaturePalette(_ mireks: [Int], brightness: Double? = nil) -> HueScenePalette {
+        HueScenePalette(
+            color: [],
+            dimming: [],
+            colorTemperature: mireks.map {
+                HueScenePaletteColorTemp(
+                    colorTemperature: HueColorTemperature(mirek: $0),
+                    dimming: brightness.map { HueScenePaletteDimming(brightness: $0) }
+                )
+            }
+        )
+    }
+
+    private func mireks(in entries: [ScenePaletteEntry]) -> [Int] {
+        entries.compactMap { entry in
+            if case .colorTemperature(let mirek, _) = entry {
+                return mirek
+            }
+            return nil
+        }
+    }
+
+    private func xyCount(in entries: [ScenePaletteEntry]) -> Int {
+        entries.filter { entry in
+            if case .xy = entry {
+                return true
+            }
+            return false
+        }.count
+    }
+
+    private func temperatureStops(in entries: [ScenePaletteEntry]) -> [TemperatureStop] {
+        entries.compactMap { entry in
+            if case .colorTemperature(let mirek, let brightness) = entry {
+                return TemperatureStop(mirek: mirek, brightness: brightness)
+            }
+            return nil
+        }
     }
 
     @Test func activeSceneReturnsStaticScene() {
@@ -687,6 +992,106 @@ struct HueAPIClientTests {
         ]
 
         #expect(client.activeScene(for: "room-1") == nil)
+    }
+
+    @Test func previewPaletteUsesCurrentRoomLightsInsteadOfInactiveSceneFallback() {
+        // Arrange
+        let client = makeClient()
+        client.rooms = [
+            Room(
+                id: "room-1",
+                metadata: GroupMetadata(name: "Office", archetype: "office"),
+                services: [],
+                children: [
+                    ResourceLink(rid: "device-1", rtype: "device"),
+                    ResourceLink(rid: "device-2", rtype: "device"),
+                ]
+            ),
+        ]
+        client.lights = [
+            makeLight(id: "light-1", name: "Desk", ownerRid: "device-1", mirek: 370),
+            makeLight(id: "light-2", name: "Ceiling", ownerRid: "device-2", mirek: 370),
+        ]
+        client.scenes = [
+            makeScene(
+                id: "vapor-wave",
+                name: "Vapor Wave",
+                groupId: "room-1",
+                status: .inactive,
+                palette: makeColorPalette([
+                    CIEXYColor(x: 0.167, y: 0.04),
+                    CIEXYColor(x: 0.5, y: 0.2),
+                ])
+            ),
+            makeScene(
+                id: "bright",
+                name: "Bright",
+                groupId: "room-1",
+                status: .inactive,
+                palette: makeTemperaturePalette([370])
+            ),
+        ]
+
+        // Act
+        let entries = client.previewPaletteEntries(for: "room-1")
+
+        // Assert
+        #expect(mireks(in: entries) == [370, 370])
+        #expect(xyCount(in: entries) == 0)
+    }
+
+    @Test func previewPaletteDoesNotUseInactiveSceneWhenCurrentLightsAreUnknown() {
+        // Arrange
+        let client = makeClient()
+        client.scenes = [
+            makeScene(
+                id: "vapor-wave",
+                name: "Vapor Wave",
+                groupId: "room-1",
+                status: .inactive,
+                palette: makeColorPalette([
+                    CIEXYColor(x: 0.167, y: 0.04),
+                    CIEXYColor(x: 0.5, y: 0.2),
+                ])
+            ),
+        ]
+
+        // Act
+        let entries = client.previewPaletteEntries(for: "room-1")
+
+        // Assert
+        #expect(entries.isEmpty)
+    }
+
+    @Test func previewPaletteUsesKnownActiveSceneWhenCurrentLightsAreUnavailable() {
+        // Arrange
+        let client = makeClient()
+        client.scenes = [
+            makeScene(
+                id: "vapor-wave",
+                name: "Vapor Wave",
+                groupId: "room-1",
+                status: .inactive,
+                palette: makeColorPalette([
+                    CIEXYColor(x: 0.167, y: 0.04),
+                    CIEXYColor(x: 0.5, y: 0.2),
+                ])
+            ),
+            makeScene(
+                id: "bright",
+                name: "Bright",
+                groupId: "room-1",
+                status: .static,
+                palette: makeTemperaturePalette([370], brightness: 100)
+            ),
+        ]
+
+        // Act
+        let entries = client.previewPaletteEntries(for: "room-1")
+
+        // Assert
+        #expect(temperatureStops(in: entries) == [TemperatureStop(mirek: 370, brightness: 100)])
+        #expect(xyCount(in: entries) == 0)
     }
 
     @Test func toggleLightRollbackOnHTTPFailure() async throws {
@@ -868,7 +1273,7 @@ struct HueAPIClientTests {
         return body
     }
 
-    private func makeLight(id: String, name: String, ownerRid: String) -> HueLight {
+    private func makeLight(id: String, name: String, ownerRid: String, mirek: Int? = nil) -> HueLight {
         HueLight(
             id: id,
             owner: ResourceLink(rid: ownerRid, rtype: "device"),
@@ -876,7 +1281,7 @@ struct HueAPIClientTests {
             on: OnState(on: true),
             dimming: DimmingState(brightness: 50),
             color: nil,
-            colorTemperature: nil
+            colorTemperature: mirek.map { LightColorTemperature(mirek: $0, mirekValid: true) }
         )
     }
 
