@@ -105,6 +105,8 @@ swift run
 
 Room and zone color changes preview immediately and coalesce while dragging. Leaving the detail view sends the final selection; failed changes restore the last known color and reconcile with the bridge when reachable.
 
+Room and zone cards blend the colors of their active lights horizontally, with vivid colors at the top and darker shading below. Card colors stay vivid when lights are dimmed; the slider shows the actual brightness.
+
 ### Multiple Bridges
 
 If you have more than one Hue Bridge:
