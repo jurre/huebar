@@ -18,7 +18,9 @@ struct SceneCard: View {
     }
 
     private var cardContent: some View {
-        Button(action: onTap) {
+        let foreground = ColorCardStyle.foreground(for: scene.paletteColors)
+
+        return Button(action: onTap) {
             VStack(spacing: 6) {
                 Spacer()
                 Text(scene.name)
@@ -26,12 +28,12 @@ struct SceneCard: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+                    .foregroundStyle(foreground)
+                    .shadow(color: foreground == .white ? .black.opacity(0.5) : .clear, radius: 2, y: 1)
             }
             .frame(maxWidth: .infinity, minHeight: 64)
             .padding(6)
-            .hueCard(fill: sceneGradient, cornerRadius: 12, interactive: true)
+            .modifier(ColorCardStyle(colors: scene.paletteColors, cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(isActive ? Color.white : Color.clear, lineWidth: 2)
@@ -47,41 +49,12 @@ struct SceneCard: View {
         } label: {
             Image(systemName: isDynamic ? "pause.fill" : "play.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(ColorCardStyle.foreground(for: scene.paletteColors))
                 .frame(width: 34, height: 34)
                 .background(isLiquidGlassAvailable ? .clear : .black.opacity(0.35), in: Circle())
         }
         .accessibilityLabel(isDynamic ? "Pause dynamic scene" : "Play dynamic scene")
         .hueGlassButtonStyle(fallback: .plain)
         .buttonBorderShape(.circle)
-    }
-
-    private var sceneGradient: AnyShapeStyle {
-        let colors = scene.paletteColors
-        if colors.count >= 2 {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: colors,
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-        } else if let first = colors.first {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: [first, first.opacity(0.6)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-        } else {
-            return AnyShapeStyle(
-                LinearGradient(
-                    colors: [.orange.opacity(0.6), .purple.opacity(0.5)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-        }
     }
 }
