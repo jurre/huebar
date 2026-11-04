@@ -7,18 +7,21 @@ struct LightCard: View {
     var onTap: (() -> Void)? = nil
 
     var body: some View {
+        let color = light.cardColor
+        let foreground = ColorCardStyle.foreground(for: [color])
+
         Button(action: { onTap?() }) {
             HStack(spacing: 0) {
                 // Color accent strip
                 Rectangle()
-                    .fill(light.isOn ? light.displayColor : Color.gray.opacity(0.3))
+                    .fill(light.isOn ? color : Color.gray.opacity(0.3))
                     .frame(width: 4)
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         Image(systemName: ArchetypeIcon.systemName(for: light.metadata.archetype))
                             .font(.title2)
-                            .foregroundStyle(light.isOn ? .white : .secondary)
+                            .foregroundStyle(light.isOn ? foreground : .secondary)
 
                         Spacer()
 
@@ -27,35 +30,26 @@ struct LightCard: View {
                             .tint(.hueAccent)
                             .labelsHidden()
                             .controlSize(.mini)
+                            .accessibilityLabel("Toggle \(light.name)")
                     }
 
                     Text(light.name)
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(light.isOn ? .white : .primary)
+                        .foregroundStyle(light.isOn ? foreground : .primary)
                         .lineLimit(2)
                 }
                 .padding(10)
             }
-            .hueCard(fill: cardBackground, cornerRadius: 12, interactive: true, clip: true)
+            .modifier(ColorCardStyle(
+                colors: light.isOn ? [color] : nil, cornerRadius: 12, clip: true
+            ))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
             )
         }
         .buttonStyle(.plain)
-    }
-
-    /// `nil` when off: plain glass on macOS 26, `hueCardOff` otherwise.
-    private var cardBackground: AnyShapeStyle? {
-        guard light.isOn else { return nil }
-        let base = light.currentColor
-        return AnyShapeStyle(
-            LinearGradient(
-                colors: [base.opacity(0.85), base.opacity(0.55)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .accessibilityLabel("\(light.name), \(light.isOn ? "on" : "off")")
     }
 
     private var toggleBinding: Binding<Bool> {
