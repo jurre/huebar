@@ -21,6 +21,14 @@ struct HueLight: Decodable, Sendable, Identifiable {
     /// Off-state presentation must not overwrite the bridge's retained dimming level.
     var displayBrightness: Double { isOn ? brightness : 0 }
 
+    /// Undimmed color for card surfaces; brightness remains available in the controls.
+    var cardColor: Color {
+        if let xy = color?.xy {
+            return xy.displayColor()
+        }
+        return CIEXYColor.colorFromMirek(colorTemperature?.mirek ?? 370)
+    }
+
     /// Vivid color for display indicators (colored dots)
     var displayColor: Color {
         if let xy = color?.xy {

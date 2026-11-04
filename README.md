@@ -105,7 +105,7 @@ swift run
 
 Room and zone color changes preview immediately and coalesce while dragging. Leaving the detail view sends the final selection; failed changes restore the last known color and reconcile with the bridge when reachable.
 
-Room and zone cards blend the colors of their active lights horizontally, with vivid colors at the top and darker shading below. Card colors stay vivid when lights are dimmed; the slider shows the actual brightness.
+Room and zone cards blend the colors of their active lights horizontally, with vivid colors at the top and darker shading below. Scene and individual-light cards use the same treatment, with dark labels on near-white palettes. Card colors stay vivid when lights are dimmed; the brightness controls show the actual level.
 
 With VoiceOver, the color wheel exposes separate hue and saturation sliders with current values. The color-temperature control announces kelvin; increase it for warmer light or decrease it for cooler light. Light, room, and zone toggles announce their target names.
 
@@ -130,7 +130,7 @@ Shortcuts are registered via Carbon `RegisterEventHotKey` and do not require Acc
 
 ## Sleep/Wake Automation
 
-HueBar can automatically control rooms when your Mac sleeps and wakes — great for office lights or desk lamps:
+HueBar can automatically control rooms and zones across all configured Hue Bridges when your Mac sleeps and wakes — great for office lights or desk lamps. Wake scenes are recalled on the bridge that owns the selected room or zone.
 
 1. Click the ⚙️ gear icon in HueBar to open **Settings**
 2. In the **Sleep / Wake** section, click **Add Rule**

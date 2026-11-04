@@ -74,8 +74,6 @@ final class AppCoordinator {
     }
 
     private func configureSleepWake(sleepWakeManager: SleepWakeManager, bridgeManager: BridgeManager) {
-        if let primary = bridgeManager.bridges.first {
-            sleepWakeManager.configure(apiClient: primary.client)
-        }
+        sleepWakeManager.configure(bridgeManager: bridgeManager)
     }
 }
