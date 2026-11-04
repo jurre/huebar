@@ -22,6 +22,13 @@ enum HueAPIError: Error, LocalizedError {
 @MainActor
 final class HueAPIClient {
     private static let logger = Logger(subsystem: "com.huebar", category: "HueAPIClient")
+    @ObservationIgnored var failureLogHandler: ((String) -> Void)?
+
+    private func logFailure(_ message: String) {
+        Self.logger.error("\(message, privacy: .public)")
+        failureLogHandler?(message)
+    }
+
     private enum ControlOperation: String {
         case toggle, brightness, color, colorTemperature, recall, speed
     }
@@ -387,7 +394,7 @@ final class HueAPIClient {
                     }
                 }
             } catch {
-                Self.logger.error("Failed to reconcile group color: \(error.localizedDescription)")
+                logFailure("Failed to reconcile group color: \(Self.safeFailureCategory(error))")
             }
             for lightId in lightIds where groupColorPreviews[lightId]?.token == token {
                 groupColorPreviews[lightId] = nil
@@ -856,8 +863,24 @@ final class HueAPIClient {
         do {
             try await refresh()
         } catch {
-            Self.logger.error("Failed to refresh state after control request failure")
+            logFailure("Failed to refresh state after control request failure: \(Self.safeFailureCategory(error))")
         }
+    }
+
+    private static func safeFailureCategory(_ error: any Error) -> String {
+        if let urlError = error as? URLError {
+            return "transport (URL error \(urlError.code.rawValue))"
+        }
+        if error is DecodingError { return "decode response" }
+        if let apiError = error as? HueAPIError {
+            switch apiError {
+            case .bridgeError: return "bridge API"
+            case .invalidResponse: return "invalid response"
+            case .invalidResourceId: return "invalid resource identifier"
+            case .invalidBridgeIP: return "invalid bridge address"
+            }
+        }
+        return "request failure"
     }
 
     /// Log only locally generated diagnostics: URLs, headers, bodies, and error descriptions may contain secrets.
@@ -889,7 +912,7 @@ final class HueAPIClient {
             if let urlError = error as? URLError {
                 failure = "transport (URL error \(urlError.code.rawValue))"
             }
-            Self.logger.error("PUT \(resource, privacy: .public) \(operation.rawValue, privacy: .public) failed: \(failure, privacy: .public)")
+            logFailure("PUT \(resource) \(operation.rawValue) failed: \(failure)")
             throw error
         }
     }

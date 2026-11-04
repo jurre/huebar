@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 import Testing
 @testable import HueBar
 
@@ -86,7 +85,8 @@ struct HueAPIClientTests {
 
     @Test func controlFailuresAreLoggedWithoutSecrets() async throws {
         let client = makeClient()
-        let start = Date()
+        var messages: [String] = []
+        client.failureLogHandler = { messages.append($0) }
         MockURLProtocol.requestHandler = { _ in
             throw URLError(.notConnectedToInternet, userInfo: [
                 NSLocalizedDescriptionKey: "test-key 192.168.1.100 sensitive transport detail",
@@ -118,11 +118,6 @@ struct HueAPIClientTests {
             try await client.setSceneSpeed(id: "00000000-0000-0000-0000-000000000097", speed: 0.5)
         }
 
-        let store = try OSLogStore(scope: .currentProcessIdentifier)
-        let entries = try store.getEntries(at: store.position(date: start))
-        let messages = entries.compactMap { $0 as? OSLogEntryLog }
-            .filter { $0.subsystem == "com.huebar" && $0.category == "HueAPIClient" }
-            .map(\.composedMessage)
         let failures = messages.filter { $0.contains("PUT scene") }
         #expect(failures.count == 4)
         #expect(failures.allSatisfy { $0.contains("speed") })
@@ -133,6 +128,39 @@ struct HueAPIClientTests {
         #expect(!messages.contains {
             $0.contains("test-key") || $0.contains("192.168.1.100") || $0.contains("00000000-")
         })
+    }
+
+    @Test(arguments: ["bridge", "transport", "decode"])
+    func groupColorReconciliationLogsOnlySafeDiagnostics(failure: String) async throws {
+        let client = makeClient()
+        var messages: [String] = []
+        client.failureLogHandler = { messages.append($0) }
+        MockURLProtocol.requestHandler = { request in
+            if request.httpMethod == "PUT" { throw URLError(.networkConnectionLost) }
+            if failure == "transport" {
+                throw URLError(.cannotConnectToHost, userInfo: [
+                    NSLocalizedDescriptionKey: "test-key sensitive transport detail",
+                ])
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let json = failure == "bridge"
+                ? #"{"errors":[{"description":"test-key sensitive bridge detail"}],"data":[]}"#
+                : "test-key invalid JSON"
+            return (response, Data(json.utf8))
+        }
+
+        await #expect(throws: URLError.self) {
+            try await client.setGroupedLightColor(
+                id: "00000000-0000-0000-0000-000000000097",
+                xy: CIEXYColor(x: 0.3, y: 0.4), lightIds: []
+            )
+        }
+
+        let reconciliation = messages.filter { $0.contains("reconcile group color") }
+        #expect(reconciliation.count == 1)
+        let expected = failure == "bridge" ? "bridge API" : failure == "transport" ? "-1004" : "decode"
+        #expect(reconciliation.allSatisfy { $0.contains(expected) })
+        #expect(messages.allSatisfy { !$0.contains("test-key") && !$0.contains("sensitive") })
     }
 
     @Test(arguments: [
