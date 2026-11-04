@@ -13,7 +13,8 @@ struct ControlAccessibilityTests {
         try withElements(
             ColorTemperatureSlider(mirek: Binding(get: { mirek.value }, set: { mirek.value = $0 })) {
                 changes.append($0)
-            }
+            },
+            expecting: ["Color temperature"]
         ) { elements in
             let slider = try #require(elements.first { $0.accessibilityLabel() == "Color temperature" })
             #expect(slider.accessibilityValueDescription() == "\(2857.formatted()) kelvin")
@@ -32,7 +33,8 @@ struct ControlAccessibilityTests {
     func wheelSaturationAdjustmentsStayWithinBounds(start: Double) throws {
         let xy = Value(CIEXYColor.fromHSB(hue: 0.3, saturation: start))
         try withElements(
-            ColorWheelView(xy: Binding(get: { xy.value }, set: { xy.value = $0 })) { _ in }
+            ColorWheelView(xy: Binding(get: { xy.value }, set: { xy.value = $0 })) { _ in },
+            expecting: ["Color saturation"]
         ) { elements in
             let saturation = try #require(elements.first { $0.accessibilityLabel() == "Color saturation" })
             if start == 1 {
@@ -48,7 +50,8 @@ struct ControlAccessibilityTests {
     func temperatureAdjustmentsStayWithinBounds(start: Int) throws {
         let mirek = Value(start)
         try withElements(
-            ColorTemperatureSlider(mirek: Binding(get: { mirek.value }, set: { mirek.value = $0 })) { _ in }
+            ColorTemperatureSlider(mirek: Binding(get: { mirek.value }, set: { mirek.value = $0 })) { _ in },
+            expecting: ["Color temperature"]
         ) { elements in
             let slider = try #require(elements.first { $0.accessibilityLabel() == "Color temperature" })
             if start == 500 {
@@ -64,7 +67,8 @@ struct ControlAccessibilityTests {
         let xy = Value(CIEXYColor.fromHSB(hue: 0.3, saturation: 0.5))
         var changes: [CIEXYColor] = []
         try withElements(
-            ColorWheelView(xy: Binding(get: { xy.value }, set: { xy.value = $0 })) { changes.append($0) }
+            ColorWheelView(xy: Binding(get: { xy.value }, set: { xy.value = $0 })) { changes.append($0) },
+            expecting: ["Color hue", "Color saturation"]
         ) { elements in
             let hue = try #require(elements.first { $0.accessibilityLabel() == "Color hue" })
             let saturation = try #require(elements.first { $0.accessibilityLabel() == "Color saturation" })
@@ -109,26 +113,39 @@ struct ControlAccessibilityTests {
             id: "room-1", metadata: GroupMetadata(name: "Living room", archetype: nil),
             services: [], children: []
         )
-        withElements(LightCard(apiClient: client, light: light)) { elements in
+        try withElements(
+            LightCard(apiClient: client, light: light), expecting: ["Toggle Desk lamp"]
+        ) { elements in
             #expect(elements.contains { $0.accessibilityLabel() == "Toggle Desk lamp" })
         }
-        withElements(RoomDetailView(apiClient: client, target: .room(room), onBack: {})) { elements in
+        try withElements(
+            RoomDetailView(apiClient: client, target: .room(room), onBack: {}),
+            expecting: ["Toggle Living room"]
+        ) { elements in
             #expect(elements.contains { $0.accessibilityLabel() == "Toggle Living room" })
         }
         let zone = Zone(
             id: "zone-1", metadata: GroupMetadata(name: "Upstairs", archetype: nil),
             services: [], children: []
         )
-        withElements(RoomDetailView(apiClient: client, target: .zone(zone), onBack: {})) { elements in
+        try withElements(
+            RoomDetailView(apiClient: client, target: .zone(zone), onBack: {}),
+            expecting: ["Toggle Upstairs"]
+        ) { elements in
             #expect(elements.contains { $0.accessibilityLabel() == "Toggle Upstairs" })
         }
     }
 
     private func withElements<Content: View>(
-        _ content: Content, check: ([Element]) throws -> Void
-    ) rethrows {
+        _ content: Content, expecting labels: [String], check: ([Element]) throws -> Void
+    ) throws {
+        let enhancedUI = NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
         NSApplication.shared.accessibilitySetValue(
-            true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface")
+            true, forAttribute: enhancedUI
+        )
+        try #require(
+            (NSApplication.shared.accessibilityAttributeValue(enhancedUI) as? NSNumber)?.boolValue == true,
+            "AXEnhancedUserInterface could not be enabled for hosted SwiftUI accessibility tests"
         )
         let host = NSHostingView(rootView: content.frame(width: 300, height: 300))
         let window = NSWindow(
@@ -138,13 +155,25 @@ struct ControlAccessibilityTests {
         window.isReleasedWhenClosed = false
         window.contentView = host
         defer { window.close() }
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        try check((host.accessibilityChildren() as? [NSObject] ?? []).flatMap { descendants(of: $0) })
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            host.layoutSubtreeIfNeeded()
+            let elements = (host.accessibilityChildren() as? [NSObject] ?? []).flatMap { descendants(of: $0) }
+            if labels.allSatisfy({ label in elements.contains { $0.accessibilityLabel() == label } }) {
+                try check(elements)
+                return
+            }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        } while Date() < deadline
+        Issue.record("Accessibility tree did not expose expected labels within 5 seconds: \(labels)")
     }
 
     private func descendants(of element: NSObject) -> [Element] {
         let object: AnyObject = element
+        guard object.responds(to: #selector(NSAccessibilityProtocol.accessibilityChildren)) else {
+            Issue.record("Accessibility element \(element) is missing required selector accessibilityChildren")
+            return [Element(object: element)]
+        }
         let children = object.accessibilityChildren?() as? [NSObject] ?? []
         return [Element(object: element)] + children.flatMap {
             descendants(of: $0)
@@ -156,23 +185,35 @@ struct ControlAccessibilityTests {
         let object: AnyObject
 
         func accessibilityLabel() -> String? {
-            object.accessibilityLabel?()
+            guard supports(#selector(NSAccessibilityProtocol.accessibilityLabel)) else { return nil }
+            return object.accessibilityLabel?()
         }
 
         func accessibilityValueDescription() -> String? {
-            object.accessibilityValueDescription?()
+            guard supports(#selector(NSAccessibilityProtocol.accessibilityValueDescription)) else { return nil }
+            return object.accessibilityValueDescription?()
         }
 
         func accessibilityPerformIncrement() -> Bool {
+            guard supports(#selector(NSAccessibilityProtocol.accessibilityPerformIncrement)) else { return false }
             let result = object.accessibilityPerformIncrement?() ?? false
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             return result
         }
 
         func accessibilityPerformDecrement() -> Bool {
+            guard supports(#selector(NSAccessibilityProtocol.accessibilityPerformDecrement)) else { return false }
             let result = object.accessibilityPerformDecrement?() ?? false
             RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             return result
+        }
+
+        private func supports(_ selector: Selector) -> Bool {
+            guard object.responds(to: selector) else {
+                Issue.record("Accessibility element \(object) is missing required selector \(NSStringFromSelector(selector))")
+                return false
+            }
+            return true
         }
     }
 }
