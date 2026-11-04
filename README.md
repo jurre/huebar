@@ -107,6 +107,8 @@ Room and zone color changes preview immediately and coalesce while dragging. Lea
 
 Room and zone cards blend the colors of their active lights horizontally, with vivid colors at the top and darker shading below. Card colors stay vivid when lights are dimmed; the slider shows the actual brightness.
 
+With VoiceOver, the color wheel exposes separate hue and saturation sliders with current values. The color-temperature control announces kelvin; increase it for warmer light or decrease it for cooler light. Light, room, and zone toggles announce their target names.
+
 ### Multiple Bridges
 
 If you have more than one Hue Bridge:

@@ -105,6 +105,7 @@ struct RoomDetailView: View {
                     .toggleStyle(.switch)
                     .tint(.hueAccent)
                     .labelsHidden()
+                    .accessibilityLabel("Toggle \(name)")
                     .disabled(groupedLightId == nil)
             }
             .padding(.horizontal)

@@ -76,13 +76,39 @@ struct ColorWheelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(1, contentMode: .fit)
-        .accessibilityLabel("Color")
-        .accessibilityValue(accessibilityDescription)
-    }
+        .accessibilityRepresentation {
+            VStack {
+                Slider(
+                    value: Binding(
+                        get: { xy.toHSB().hue * 360 },
+                        set: { degrees in
+                            let newXY = CIEXYColor.fromHSB(hue: degrees / 360, saturation: xy.toHSB().saturation)
+                            xy = newXY
+                            onChanged(newXY)
+                        }
+                    ),
+                    in: 0...360,
+                    step: 5
+                )
+                .accessibilityLabel("Color hue")
+                .accessibilityValue("\(Int(xy.toHSB().hue * 360)) degrees")
 
-    private var accessibilityDescription: String {
-        let hsb = xy.toHSB()
-        return "Hue \(Int(hsb.hue * 360)) degrees, saturation \(Int(hsb.saturation * 100))%"
+                Slider(
+                    value: Binding(
+                        get: { xy.toHSB().saturation * 100 },
+                        set: { percent in
+                            let newXY = CIEXYColor.fromHSB(hue: xy.toHSB().hue, saturation: percent / 100)
+                            xy = newXY
+                            onChanged(newXY)
+                        }
+                    ),
+                    in: 0...100,
+                    step: 5
+                )
+                .accessibilityLabel("Color saturation")
+                .accessibilityValue("\(Int(xy.toHSB().saturation * 100))%")
+            }
+        }
     }
 
     private var thumbColor: Color {

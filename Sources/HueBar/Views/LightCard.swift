@@ -7,42 +7,49 @@ struct LightCard: View {
     var onTap: (() -> Void)? = nil
 
     var body: some View {
-        Button(action: { onTap?() }) {
-            HStack(spacing: 0) {
-                // Color accent strip
-                Rectangle()
-                    .fill(light.isOn ? light.displayColor : Color.gray.opacity(0.3))
-                    .frame(width: 4)
+        ZStack(alignment: .topTrailing) {
+            Button(action: { onTap?() }) {
+                HStack(spacing: 0) {
+                    // Color accent strip
+                    Rectangle()
+                        .fill(light.isOn ? light.displayColor : Color.gray.opacity(0.3))
+                        .frame(width: 4)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: ArchetypeIcon.systemName(for: light.metadata.archetype))
-                            .font(.title2)
-                            .foregroundStyle(light.isOn ? .white : .secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: ArchetypeIcon.systemName(for: light.metadata.archetype))
+                                .font(.title2)
+                                .foregroundStyle(light.isOn ? .white : .secondary)
 
-                        Spacer()
+                            Spacer()
 
-                        Toggle("", isOn: toggleBinding)
-                            .toggleStyle(.switch)
-                            .tint(.hueAccent)
-                            .labelsHidden()
-                            .controlSize(.mini)
+                            Color.clear.frame(width: 26, height: 16)
+                        }
+
+                        Text(light.name)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(light.isOn ? .white : .primary)
+                            .lineLimit(2)
                     }
-
-                    Text(light.name)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(light.isOn ? .white : .primary)
-                        .lineLimit(2)
+                    .padding(10)
                 }
-                .padding(10)
+                .hueCard(fill: cardBackground, cornerRadius: 12, interactive: true, clip: true)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
+                )
             }
-            .hueCard(fill: cardBackground, cornerRadius: 12, interactive: true, clip: true)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
-            )
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(light.name) details")
+
+            Toggle("", isOn: toggleBinding)
+                .toggleStyle(.switch)
+                .tint(.hueAccent)
+                .labelsHidden()
+                .accessibilityLabel("Toggle \(light.name)")
+                .controlSize(.mini)
+                .padding(10)
         }
-        .buttonStyle(.plain)
     }
 
     /// `nil` when off: plain glass on macOS 26, `hueCardOff` otherwise.
