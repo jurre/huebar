@@ -20,8 +20,15 @@ extension HueScene {
 }
 
 extension HueAPIClient {
-    /// Convenience for views: converts raw palette entries to SwiftUI Colors.
+    /// Room cards show undimmed source colors; the slider communicates bulb brightness.
     func previewColors(for groupId: String?) -> [Color] {
-        previewPaletteEntries(for: groupId).map(\.color)
+        previewPaletteEntries(for: groupId).map { entry in
+            switch entry {
+            case .xy(let xy, _):
+                return xy.displayColor()
+            case .colorTemperature(let mirek, _):
+                return CIEXYColor.colorFromMirek(mirek)
+            }
+        }
     }
 }
