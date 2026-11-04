@@ -22,6 +22,10 @@ enum HueAPIError: Error, LocalizedError {
 @MainActor
 final class HueAPIClient {
     private static let logger = Logger(subsystem: "com.huebar", category: "HueAPIClient")
+    private enum ControlOperation: String {
+        case toggle, brightness, color, colorTemperature, recall, speed
+    }
+
     private struct GroupColorPreview {
         let token: UUID
         var original: LightColor?
@@ -157,17 +161,16 @@ final class HueAPIClient {
         }
         applyLightOnOptimistically(id: id, on: on)
 
-        let request = try makeRequest(
-            path: "light/\(id)",
-            method: "PUT",
-            body: try JSONEncoder().encode(["on": OnState(on: on)])
-        )
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            try await sendControlRequest(
+                path: "light/\(id)",
+                operation: .toggle,
+                body: try JSONEncoder().encode(["on": OnState(on: on)])
+            )
+        } catch {
             clearOptimisticLightToggle(id: id)
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
+            await reconcileControlFailure { lights = try await fetchLights() }
+            throw error
         }
     }
 
@@ -183,17 +186,16 @@ final class HueAPIClient {
         }
         let clamped = applyLightBrightnessOptimistically(id: id, brightness: brightness)
 
-        let request = try makeRequest(
-            path: "light/\(id)",
-            method: "PUT",
-            body: try JSONEncoder().encode(["dimming": DimmingState(brightness: clamped)])
-        )
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            try await sendControlRequest(
+                path: "light/\(id)",
+                operation: .brightness,
+                body: try JSONEncoder().encode(["dimming": DimmingState(brightness: clamped)])
+            )
+        } catch {
             optimisticUpdates.clear(.brightness, for: .light, id: id)
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
+            await reconcileControlFailure { lights = try await fetchLights() }
+            throw error
         }
     }
 
@@ -209,14 +211,13 @@ final class HueAPIClient {
         }
         applyLightColorOptimistically(id: id, xy: xy)
 
-        let body = try JSONEncoder().encode(["color": ["xy": ["x": xy.x, "y": xy.y]]])
-        let request = try makeRequest(path: "light/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            let body = try JSONEncoder().encode(["color": ["xy": ["x": xy.x, "y": xy.y]]])
+            try await sendControlRequest(path: "light/\(id)", operation: .color, body: body)
+        } catch {
             optimisticUpdates.clear(.color, for: .light, id: id)
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
+            await reconcileControlFailure { lights = try await fetchLights() }
+            throw error
         }
     }
 
@@ -232,14 +233,13 @@ final class HueAPIClient {
         }
         let clampedMirek = applyLightColorTemperatureOptimistically(id: id, mirek: mirek)
 
-        let body = try JSONEncoder().encode(["color_temperature": ["mirek": clampedMirek]])
-        let request = try makeRequest(path: "light/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            let body = try JSONEncoder().encode(["color_temperature": ["mirek": clampedMirek]])
+            try await sendControlRequest(path: "light/\(id)", operation: .colorTemperature, body: body)
+        } catch {
             optimisticUpdates.clear(.colorTemperature, for: .light, id: id)
-            lights = try await fetchLights()
-            throw HueAPIError.invalidResponse
+            await reconcileControlFailure { lights = try await fetchLights() }
+            throw error
         }
     }
 
@@ -269,22 +269,23 @@ final class HueAPIClient {
         applyGroupedLightOnOptimistically(id: id, on: on)
         optimisticallyUpdateLights(withIds: memberLightIds, on: on)
 
-        let request = try makeRequest(
-            path: "grouped_light/\(id)",
-            method: "PUT",
-            body: try JSONEncoder().encode(["on": OnState(on: on)])
-        )
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            try await sendControlRequest(
+                path: "grouped_light/\(id)",
+                operation: .toggle,
+                body: try JSONEncoder().encode(["on": OnState(on: on)])
+            )
+        } catch {
             // Revert on failure
             clearOptimisticGroupedLightToggle(id: id)
             clearOptimisticLightToggles(withIds: memberLightIds)
-            groupedLights = try await fetchGroupedLights()
-            if !memberLightIds.isEmpty {
-                lights = try await fetchLights()
+            await reconcileControlFailure {
+                groupedLights = try await fetchGroupedLights()
+                if !memberLightIds.isEmpty {
+                    lights = try await fetchLights()
+                }
             }
-            throw HueAPIError.invalidResponse
+            throw error
         }
     }
 
@@ -300,18 +301,17 @@ final class HueAPIClient {
         }
         let clampedBrightness = applyGroupedLightBrightnessOptimistically(id: groupedLightId, brightness: brightness)
 
-        let request = try makeRequest(
-            path: "grouped_light/\(groupedLightId)",
-            method: "PUT",
-            body: try JSONEncoder().encode(["dimming": DimmingState(brightness: clampedBrightness)])
-        )
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            try await sendControlRequest(
+                path: "grouped_light/\(groupedLightId)",
+                operation: .brightness,
+                body: try JSONEncoder().encode(["dimming": DimmingState(brightness: clampedBrightness)])
+            )
+        } catch {
             // Revert on failure
             optimisticUpdates.clear(.brightness, for: .groupedLight, id: groupedLightId)
-            groupedLights = try await fetchGroupedLights()
-            throw HueAPIError.invalidResponse
+            await reconcileControlFailure { groupedLights = try await fetchGroupedLights() }
+            throw error
         }
     }
 
@@ -327,14 +327,13 @@ final class HueAPIClient {
         }
         let clamped = applyGroupedLightColorTemperatureOptimistically(id: id, mirek: mirek)
 
-        let body = try JSONEncoder().encode(["color_temperature": ["mirek": clamped]])
-        let request = try makeRequest(path: "grouped_light/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            let body = try JSONEncoder().encode(["color_temperature": ["mirek": clamped]])
+            try await sendControlRequest(path: "grouped_light/\(id)", operation: .colorTemperature, body: body)
+        } catch {
             optimisticUpdates.clear(.colorTemperature, for: .groupedLight, id: id)
-            groupedLights = try await fetchGroupedLights()
-            throw HueAPIError.invalidResponse
+            await reconcileControlFailure { groupedLights = try await fetchGroupedLights() }
+            throw error
         }
     }
 
@@ -363,18 +362,7 @@ final class HueAPIClient {
                 throw HueAPIError.invalidResourceId
             }
             let body = try JSONEncoder().encode(["color": ["xy": ["x": xy.x, "y": xy.y]]])
-            let request = try makeRequest(path: "grouped_light/\(id)", method: "PUT", body: body)
-            let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                throw HueAPIError.invalidResponse
-            }
-            if !data.isEmpty {
-                let result = try JSONDecoder().decode(HueResponse<ResourceLink>.self, from: data)
-                if let error = result.errors.first {
-                    throw HueAPIError.bridgeError(error.description)
-                }
-            }
+            try await sendControlRequest(path: "grouped_light/\(id)", operation: .color, body: body)
             for lightId in lightIds {
                 if groupColorPreviews[lightId]?.token == token {
                     groupColorPreviews[lightId] = nil
@@ -519,16 +507,15 @@ final class HueAPIClient {
         // Optimistic update
         updateSceneSpeed(id: id, speed: clamped)
 
-        let body = try JSONEncoder().encode(["speed": clamped])
-        let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        do {
+            let body = try JSONEncoder().encode(["speed": clamped])
+            try await sendControlRequest(path: "scene/\(id)", operation: .speed, body: body)
+        } catch {
             // Rollback optimistic update
             if let previousSpeed {
                 updateSceneSpeed(id: id, speed: previousSpeed)
             }
-            throw HueAPIError.invalidResponse
+            throw error
         }
 
         if isDynamicSceneLive {
@@ -544,12 +531,7 @@ final class HueAPIClient {
 
     private func sendSceneRecall(id: String, action: String) async throws {
         let body = try JSONEncoder().encode(["recall": ["action": action]])
-        let request = try makeRequest(path: "scene/\(id)", method: "PUT", body: body)
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw HueAPIError.invalidResponse
-        }
+        try await sendControlRequest(path: "scene/\(id)", operation: .recall, body: body)
     }
 
     private func isSceneDynamicActive(id: String) -> Bool {
@@ -868,6 +850,48 @@ final class HueAPIClient {
             request.httpBody = body
         }
         return request
+    }
+
+    private func reconcileControlFailure(_ refresh: () async throws -> Void) async {
+        do {
+            try await refresh()
+        } catch {
+            Self.logger.error("Failed to refresh state after control request failure")
+        }
+    }
+
+    /// Log only locally generated diagnostics: URLs, headers, bodies, and error descriptions may contain secrets.
+    private func sendControlRequest(path: String, operation: ControlOperation, body: Data) async throws {
+        let resource = String(path.prefix(while: { $0 != "/" }))
+        var failure = "request setup"
+        do {
+            let request = try makeRequest(path: path, method: "PUT", body: body)
+            failure = "transport"
+            let (data, response) = try await session.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse {
+                failure = "HTTP \(httpResponse.statusCode)"
+                guard (200...299).contains(httpResponse.statusCode) else {
+                    throw HueAPIError.invalidResponse
+                }
+            } else {
+                failure = "non-HTTP response"
+                throw HueAPIError.invalidResponse
+            }
+            if !data.isEmpty {
+                failure = "decode response"
+                let result = try JSONDecoder().decode(HueResponse<ResourceLink>.self, from: data)
+                if let error = result.errors.first {
+                    failure = "bridge API (\(result.errors.count) errors)"
+                    throw HueAPIError.bridgeError(error.description)
+                }
+            }
+        } catch {
+            if let urlError = error as? URLError {
+                failure = "transport (URL error \(urlError.code.rawValue))"
+            }
+            Self.logger.error("PUT \(resource, privacy: .public) \(operation.rawValue, privacy: .public) failed: \(failure, privacy: .public)")
+            throw error
+        }
     }
 
     private func fetch<T: Decodable & Sendable>(path: String) async throws -> [T] {

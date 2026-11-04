@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Testing
 @testable import HueBar
 
@@ -82,6 +83,187 @@ struct HueAPIClientTests {
     """
 
     // MARK: - Tests
+
+    @Test func controlFailuresAreLoggedWithoutSecrets() async throws {
+        let client = makeClient()
+        let start = Date()
+        MockURLProtocol.requestHandler = { _ in
+            throw URLError(.notConnectedToInternet, userInfo: [
+                NSLocalizedDescriptionKey: "test-key 192.168.1.100 sensitive transport detail",
+            ])
+        }
+
+        await #expect(throws: URLError.self) {
+            try await client.setSceneSpeed(id: "00000000-0000-0000-0000-000000000097", speed: 0.5)
+        }
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil)!
+            return (response, Data("test-key sensitive response body".utf8))
+        }
+        await #expect(throws: HueAPIError.self) {
+            try await client.setSceneSpeed(id: "00000000-0000-0000-0000-000000000097", speed: 0.5)
+        }
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"errors":[{"description":"test-key sensitive bridge detail"}],"data":[]}"#.utf8))
+        }
+        await #expect(throws: HueAPIError.self) {
+            try await client.setSceneSpeed(id: "00000000-0000-0000-0000-000000000097", speed: 0.5)
+        }
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data("test-key invalid JSON".utf8))
+        }
+        await #expect(throws: DecodingError.self) {
+            try await client.setSceneSpeed(id: "00000000-0000-0000-0000-000000000097", speed: 0.5)
+        }
+
+        let store = try OSLogStore(scope: .currentProcessIdentifier)
+        let entries = try store.getEntries(at: store.position(date: start))
+        let messages = entries.compactMap { $0 as? OSLogEntryLog }
+            .filter { $0.subsystem == "com.huebar" && $0.category == "HueAPIClient" }
+            .map(\.composedMessage)
+        let failures = messages.filter { $0.contains("PUT scene") }
+        #expect(failures.count == 4)
+        #expect(failures.allSatisfy { $0.contains("speed") })
+        #expect(failures.contains { $0.contains("-1009") })
+        #expect(failures.contains { $0.contains("HTTP 503") })
+        #expect(failures.contains { $0.contains("bridge API") })
+        #expect(failures.contains { $0.contains("decode") })
+        #expect(!messages.contains {
+            $0.contains("test-key") || $0.contains("192.168.1.100") || $0.contains("00000000-")
+        })
+    }
+
+    @Test(arguments: [
+        "light-toggle", "light-brightness", "light-color", "light-temperature",
+        "group-toggle", "group-brightness", "group-color", "group-temperature",
+        "scene-recall", "scene-speed",
+    ])
+    func controlBridgeErrorsArePropagated(operation: String) async throws {
+        let client = makeClient()
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let json = request.httpMethod == "PUT"
+                ? #"{"errors":[{"description":"control rejected"}],"data":[]}"#
+                : #"{"errors":[],"data":[]}"#
+            return (response, Data(json.utf8))
+        }
+
+        do {
+            try await performControl(operation, client: client)
+            Issue.record("Expected bridge control error for \(operation)")
+        } catch HueAPIError.bridgeError(let description) {
+            #expect(description == "control rejected")
+        }
+    }
+
+    @Test(arguments: [
+        "light-toggle", "light-brightness", "light-color", "light-temperature",
+        "group-toggle", "group-brightness", "group-color", "group-temperature",
+        "scene-recall", "scene-speed",
+    ], ["transport", "http", "malformed", "empty-success", "envelope-success"])
+    func controlResponseHandling(operation: String, responseKind: String) async throws {
+        let client = makeClient()
+        MockURLProtocol.requestHandler = { request in
+            if request.httpMethod == "PUT", responseKind == "transport" {
+                throw URLError(.networkConnectionLost)
+            }
+            let isControl = request.httpMethod == "PUT"
+            let status = isControl && responseKind == "http" ? 500 : 200
+            let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
+            let data: Data
+            if isControl && responseKind == "malformed" {
+                data = Data("invalid JSON".utf8)
+            } else if isControl && responseKind == "empty-success" {
+                data = Data()
+            } else {
+                data = Data(#"{"errors":[],"data":[]}"#.utf8)
+            }
+            return (response, data)
+        }
+
+        switch responseKind {
+        case "transport":
+            do {
+                try await performControl(operation, client: client)
+                Issue.record("Expected transport error")
+            } catch let error as URLError {
+                #expect(error.code == .networkConnectionLost)
+            }
+        case "http":
+            do {
+                try await performControl(operation, client: client)
+                Issue.record("Expected HTTP error")
+            } catch HueAPIError.invalidResponse {}
+        case "malformed":
+            await #expect(throws: DecodingError.self) {
+                try await performControl(operation, client: client)
+            }
+        case "empty-success", "envelope-success":
+            try await performControl(operation, client: client)
+        default: Issue.record("Unknown response kind")
+        }
+    }
+
+    @Test(arguments: ["transport", "http", "bridge"])
+    func sceneSpeedFailureRestoresOptimisticState(failure: String) async throws {
+        let client = makeClient()
+        let id = "00000000-0000-0000-0000-000000000097"
+        client.scenes = [makeScene(id: id, name: "Scene", groupId: "room-1", status: .inactive)]
+        client.scenes[0].speed = 0.2
+        MockURLProtocol.requestHandler = { request in
+            if failure == "transport" { throw URLError(.networkConnectionLost) }
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: failure == "http" ? 500 : 200,
+                httpVersion: nil, headerFields: nil
+            )!
+            return (response, Data(#"{"errors":[{"description":"rejected"}],"data":[]}"#.utf8))
+        }
+
+        await #expect(throws: (any Error).self) {
+            try await client.setSceneSpeed(id: id, speed: 0.8)
+        }
+        #expect(client.scenes[0].speed == 0.2)
+    }
+
+    @Test(arguments: [
+        "light-toggle", "light-brightness", "light-color", "light-temperature",
+        "group-toggle", "group-brightness", "group-color", "group-temperature",
+    ])
+    func failedReconciliationPreservesControlError(operation: String) async throws {
+        let client = makeClient()
+        MockURLProtocol.requestHandler = { request in
+            if request.httpMethod == "PUT" {
+                throw URLError(.networkConnectionLost)
+            }
+            throw URLError(.cannotConnectToHost)
+        }
+
+        do {
+            try await performControl(operation, client: client)
+            Issue.record("Expected original transport error")
+        } catch let error as URLError {
+            #expect(error.code == .networkConnectionLost)
+        }
+    }
+
+    private func performControl(_ operation: String, client: HueAPIClient) async throws {
+        let id = "00000000-0000-0000-0000-000000000097"
+        switch operation {
+        case "light-toggle": try await client.toggleLight(id: id, on: false)
+        case "light-brightness": try await client.setLightBrightness(id: id, brightness: 50)
+        case "light-color": try await client.setLightColor(id: id, xy: CIEXYColor(x: 0.3, y: 0.4))
+        case "light-temperature": try await client.setLightColorTemperature(id: id, mirek: 300)
+        case "group-toggle": try await client.toggleGroupedLight(id: id, on: false)
+        case "group-brightness": try await client.setBrightness(groupedLightId: id, brightness: 50)
+        case "group-color": try await client.setGroupedLightColor(id: id, xy: CIEXYColor(x: 0.3, y: 0.4), lightIds: [])
+        case "group-temperature": try await client.setGroupedLightColorTemperature(id: id, mirek: 300)
+        case "scene-recall": try await client.recallScene(id: id)
+        case "scene-speed": try await client.setSceneSpeed(id: id, speed: 0.5)
+        default: Issue.record("Unknown control operation \(operation)")
+        }
+    }
 
     @Test func fetchRooms() async throws {
         let client = makeClient()
