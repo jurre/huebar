@@ -45,8 +45,23 @@ struct ColorTemperatureSlider: View {
             )
         }
         .frame(height: thumbSize)
-        .accessibilityLabel("Color temperature")
-        .accessibilityValue(mirek < 250 ? "Cool" : mirek > 400 ? "Warm" : "Neutral")
+        .accessibilityRepresentation {
+            Slider(
+                value: Binding(
+                    get: { Double(mirek) },
+                    set: { value in
+                        let newMirek = min(max(Int(value), mirekRange.lowerBound), mirekRange.upperBound)
+                        mirek = newMirek
+                        onChanged(newMirek)
+                    }
+                ),
+                in: Double(mirekRange.lowerBound)...Double(mirekRange.upperBound),
+                step: 1
+            )
+            .accessibilityLabel("Color temperature")
+            .accessibilityValue("\(Int(1_000_000.0 / Double(max(mirek, 1)))) kelvin")
+            .accessibilityHint("Increase for warmer light, decrease for cooler light")
+        }
     }
 
     private func thumbOffset(width: CGFloat, thumbSize: CGFloat) -> CGFloat {

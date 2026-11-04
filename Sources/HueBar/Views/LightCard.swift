@@ -10,46 +10,51 @@ struct LightCard: View {
         let color = light.cardColor
         let foreground = ColorCardStyle.foreground(for: [color])
 
-        Button(action: { onTap?() }) {
-            HStack(spacing: 0) {
-                // Color accent strip
-                Rectangle()
-                    .fill(light.isOn ? color : Color.gray.opacity(0.3))
-                    .frame(width: 4)
+        ZStack(alignment: .topTrailing) {
+            Button(action: { onTap?() }) {
+                HStack(spacing: 0) {
+                    // Color accent strip
+                    Rectangle()
+                        .fill(light.isOn ? color : Color.gray.opacity(0.3))
+                        .frame(width: 4)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: ArchetypeIcon.systemName(for: light.metadata.archetype))
-                            .font(.title2)
-                            .foregroundStyle(light.isOn ? foreground : .secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: ArchetypeIcon.systemName(for: light.metadata.archetype))
+                                .font(.title2)
+                                .foregroundStyle(light.isOn ? foreground : .secondary)
 
-                        Spacer()
+                            Spacer()
 
-                        Toggle("", isOn: toggleBinding)
-                            .toggleStyle(.switch)
-                            .tint(.hueAccent)
-                            .labelsHidden()
-                            .controlSize(.mini)
-                            .accessibilityLabel("Toggle \(light.name)")
+                            Color.clear.frame(width: 26, height: 16)
+                        }
+
+                        Text(light.name)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(light.isOn ? foreground : .primary)
+                            .lineLimit(2)
                     }
-
-                    Text(light.name)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(light.isOn ? foreground : .primary)
-                        .lineLimit(2)
+                    .padding(10)
                 }
-                .padding(10)
+                .modifier(ColorCardStyle(
+                    colors: light.isOn ? [color] : nil, cornerRadius: 12, clip: true
+                ))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
+                )
             }
-            .modifier(ColorCardStyle(
-                colors: light.isOn ? [color] : nil, cornerRadius: 12, clip: true
-            ))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2)
-            )
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(light.name) details")
+
+            Toggle("", isOn: toggleBinding)
+                .toggleStyle(.switch)
+                .tint(.hueAccent)
+                .labelsHidden()
+                .accessibilityLabel("Toggle \(light.name)")
+                .controlSize(.mini)
+                .padding(10)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(light.name), \(light.isOn ? "on" : "off")")
     }
 
     private var toggleBinding: Binding<Bool> {
