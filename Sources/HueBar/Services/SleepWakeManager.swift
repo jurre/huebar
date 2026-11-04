@@ -11,7 +11,7 @@ final class SleepWakeManager {
 
     var configs: [SleepWakeConfig] = []
 
-    private var apiClient: HueAPIClient?
+    private var bridgeManager: BridgeManager?
     private var sleepObserver: NSObjectProtocol?
     private var wakeObserver: NSObjectProtocol?
 
@@ -32,8 +32,8 @@ final class SleepWakeManager {
         saveConfigs()
     }
 
-    func configure(apiClient: HueAPIClient) {
-        self.apiClient = apiClient
+    func configure(bridgeManager: BridgeManager) {
+        self.bridgeManager = bridgeManager
         startObserving()
     }
 
@@ -77,12 +77,15 @@ final class SleepWakeManager {
     // MARK: - Sleep / Wake Handlers
 
     private func handleSleep() async {
-        guard let apiClient else { return }
         let sleepConfigs = configs.filter { $0.mode == .sleepOnly || $0.mode == .both }
         await withTaskGroup(of: Void.self) { group in
             for config in sleepConfigs {
-                guard let glId = groupedLightId(for: config, apiClient: apiClient),
-                      apiClient.groupedLight(for: glId)?.isOn == true else { continue }
+                guard let (apiClient, glId) = resolveTarget(for: config) else { continue }
+                guard let groupedLight = apiClient.groupedLight(for: glId) else {
+                    logger.error("Cannot run sleep rule for \(config.targetId): grouped light \(glId) is unavailable")
+                    continue
+                }
+                guard groupedLight.isOn else { continue }
                 group.addTask {
                     do {
                         try await apiClient.toggleGroupedLight(id: glId, on: false)
@@ -97,12 +100,10 @@ final class SleepWakeManager {
     private func handleWake() async {
         try? await Task.sleep(for: .seconds(2))
 
-        guard let apiClient else { return }
-
         let wakeConfigs = configs.filter { $0.mode == .wakeOnly || $0.mode == .both }
         await withTaskGroup(of: Void.self) { group in
             for config in wakeConfigs {
-                guard let glId = groupedLightId(for: config, apiClient: apiClient) else { continue }
+                guard let (apiClient, glId) = resolveTarget(for: config) else { continue }
                 if let sceneId = config.wakeSceneId {
                     group.addTask {
                         do {
@@ -125,6 +126,20 @@ final class SleepWakeManager {
     }
 
     // MARK: - Helpers
+
+    private func resolveTarget(for config: SleepWakeConfig) -> (HueAPIClient, String)? {
+        guard let bridgeManager else {
+            logger.error("Cannot run sleep/wake rule for \(config.targetId): bridge manager is not configured")
+            return nil
+        }
+        for bridge in bridgeManager.bridges {
+            if let glId = groupedLightId(for: config, apiClient: bridge.client) {
+                return (bridge.client, glId)
+            }
+        }
+        logger.error("Cannot run sleep/wake rule for \(config.targetId): target or grouped light not found on any configured bridge")
+        return nil
+    }
 
     private func groupedLightId(for config: SleepWakeConfig, apiClient: HueAPIClient) -> String? {
         switch config.targetType {

@@ -128,7 +128,7 @@ Shortcuts are registered via Carbon `RegisterEventHotKey` and do not require Acc
 
 ## Sleep/Wake Automation
 
-HueBar can automatically control rooms when your Mac sleeps and wakes — great for office lights or desk lamps:
+HueBar can automatically control rooms and zones across all configured Hue Bridges when your Mac sleeps and wakes — great for office lights or desk lamps. Wake scenes are recalled on the bridge that owns the selected room or zone.
 
 1. Click the ⚙️ gear icon in HueBar to open **Settings**
 2. In the **Sleep / Wake** section, click **Add Rule**
