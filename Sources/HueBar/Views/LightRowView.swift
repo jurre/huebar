@@ -23,7 +23,7 @@ struct LightRowView: View {
 
     var body: some View {
         let colors = isOn ? apiClient.previewColors(for: groupId) : []
-        let foreground = foregroundColor(for: colors)
+        let foreground = ColorCardStyle.foreground(for: colors)
 
         VStack(alignment: .leading, spacing: 6) {
             // Icon + Name + Toggle row
@@ -85,7 +85,9 @@ struct LightRowView: View {
             }
         }
         .padding(14)
-        .modifier(RoomCardStyle(colors: isOn ? colors : nil))
+        .modifier(ColorCardStyle(
+            colors: isOn ? colors : nil, cornerRadius: 14, shadowOpacity: 0.3, shadowRadius: 6
+        ))
         .padding(.horizontal)
         .onAppear {
             sliderBrightness = max(groupedLight?.displayBrightness ?? 0, 1)
@@ -100,22 +102,6 @@ struct LightRowView: View {
             commitBrightnessChange(newValue)
         }
         .onDisappear { debounceTask?.cancel() }
-    }
-
-    private func foregroundColor(for colors: [Color]) -> Color {
-        // Near-white palettes need dark content without dimming the colors themselves.
-        let isPale = !colors.isEmpty && colors.allSatisfy { color in
-            let rgb = color.resolve(in: .init())
-            func linearize(_ component: Float) -> Double {
-                let value = Double(component)
-                return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
-            }
-            let luminance = 0.2126 * linearize(rgb.red)
-                + 0.7152 * linearize(rgb.green)
-                + 0.0722 * linearize(rgb.blue)
-            return luminance > 0.8
-        }
-        return isPale ? .black : .white
     }
 
     private var toggleBinding: Binding<Bool> {
@@ -141,32 +127,6 @@ struct LightRowView: View {
 
         debounce(task: &debounceTask) {
             try? await apiClient.setBrightness(groupedLightId: id, brightness: brightness)
-        }
-    }
-
-    private struct RoomCardStyle: ViewModifier {
-        let colors: [Color]?
-
-        func body(content: Content) -> some View {
-            if let colors {
-                content.background {
-                    // Opaque color keeps glass and the desktop from washing out the palette.
-                    LinearGradient(
-                        colors: colors.isEmpty ? [Color(white: 0.45)] : colors,
-                        startPoint: .leading, endPoint: .trailing
-                    )
-                    .overlay {
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.58)],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
-                }
-            } else {
-                content.hueCard(fill: nil, cornerRadius: 14, interactive: true, shadowOpacity: 0.3, shadowRadius: 6)
-            }
         }
     }
 }
