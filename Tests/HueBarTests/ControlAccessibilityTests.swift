@@ -91,6 +91,50 @@ struct ControlAccessibilityTests {
         }
     }
 
+    @Test func brightnessExposesValueAndWrapsAdjustmentsInAnEdit() throws {
+        let brightness = Value(40.0)
+        var edits: [Bool] = []
+        try withElements(
+            BrightnessSlider(
+                value: Binding(get: { brightness.value }, set: { brightness.value = $0 }), color: .white
+            ) { edits.append($0) }
+                .accessibilityLabel("Office brightness")
+                .accessibilityValue("\(Int(brightness.value))%"),
+            expecting: ["Office brightness"]
+        ) { elements in
+            let slider = try #require(elements.first { $0.accessibilityLabel() == "Office brightness" })
+            #expect(slider.accessibilityValueDescription() == "40%")
+            #expect(edits.isEmpty)
+            #expect(slider.accessibilityPerformIncrement())
+            #expect(brightness.value > 40)
+            // Card sliders commit on the end of an edit, so VoiceOver changes must close one.
+            #expect(edits == [true, false])
+            #expect(slider.accessibilityPerformDecrement())
+            #expect(brightness.value == 40)
+            #expect(edits == [true, false, true, false])
+        }
+    }
+
+    @Test(arguments: [1.0, 100.0])
+    func brightnessAdjustmentsStayWithinBounds(start: Double) throws {
+        let brightness = Value(start)
+        try withElements(
+            BrightnessSlider(
+                value: Binding(get: { brightness.value }, set: { brightness.value = $0 }), color: .white
+            ) { _ in }
+                .accessibilityLabel("Brightness"),
+            expecting: ["Brightness"]
+        ) { elements in
+            let slider = try #require(elements.first { $0.accessibilityLabel() == "Brightness" })
+            if start == 100 {
+                _ = slider.accessibilityPerformIncrement()
+            } else {
+                _ = slider.accessibilityPerformDecrement()
+            }
+            #expect(brightness.value == start)
+        }
+    }
+
     @Observable
     final class Value<T> {
         var value: T
