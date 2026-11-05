@@ -102,6 +102,40 @@ struct RoomCardAppearanceTests {
         #expect(contrast >= 4.5)
     }
 
+    enum SliderCardPalette: CaseIterable {
+        case vivid
+        case daylight
+    }
+
+    @Test(arguments: [ColorScheme.light, .dark], SliderCardPalette.allCases)
+    func brightnessSliderHighlightsTheFilledSide(scheme: ColorScheme, palette: SliderCardPalette) throws {
+        let client = makeClient()
+        client.lights = [makeLight(id: "light-1", xy: .fromHSB(hue: 0.08, saturation: 0.8), brightness: 40)]
+        if palette == .daylight {
+            client.lights[0].color = nil
+            client.lights[0].colorTemperature = LightColorTemperature(mirek: 153, mirekValid: true)
+        }
+        let bitmap = try render(client: client, scheme: scheme)
+        let scale = Double(bitmap.pixelsWide) / 300
+        func luma(x: Double, y: Double) throws -> Double {
+            let color = try #require(bitmap.colorAt(x: Int(x * scale), y: Int(y * scale))?.usingColorSpace(.sRGB))
+            return 0.2126 * color.redComponent + 0.7152 * color.greenComponent + 0.0722 * color.blueComponent
+        }
+        // Card ends 1pt above the bitmap edge; the slider row sits above 14pt of padding.
+        let height = Double(bitmap.pixelsHigh) / scale
+        let rowBottom = height - 1 - 14
+        let rowBand = stride(from: rowBottom - 20, through: rowBottom, by: 0.5)
+        func strongestContrast(atX x: Double) throws -> Double {
+            let background = try luma(x: x, y: rowBottom + 4)
+            return try rowBand.map { abs(try luma(x: x, y: $0) - background) }.max() ?? 0
+        }
+        // Brightness 40% puts the thumb near x≈130; sample well clear of it and the sun icons.
+        let filled = try strongestContrast(atX: 75)
+        let remaining = try strongestContrast(atX: 225)
+        #expect(filled >= 0.3, "filled side should stand out from the card (contrast \(filled))")
+        #expect(filled >= remaining * 2, "filled side (\(filled)) should read as active vs remaining track (\(remaining))")
+    }
+
     private func render(
         client: HueAPIClient, scheme: ColorScheme
     ) throws -> NSBitmapImageRep {

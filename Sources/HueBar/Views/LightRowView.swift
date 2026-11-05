@@ -68,14 +68,12 @@ struct LightRowView: View {
                 Image(systemName: "sun.min")
                     .font(.caption2)
                     .foregroundStyle(isOn ? foreground.opacity(0.6) : .white.opacity(0.2))
-                Slider(value: $sliderBrightness, in: 1...100) { editing in
+                BrightnessSlider(value: $sliderBrightness, color: isOn ? foreground : .primary) { editing in
                     isUserDragging = editing
                     if !editing {
                         commitBrightnessChange(sliderBrightness, immediately: true)
                     }
                 }
-                    .controlSize(.small)
-                    .tint(isOn ? foreground.opacity(0.8) : .white.opacity(0.15))
                     .disabled(!isOn)
                     .accessibilityLabel("\(name) brightness")
                     .accessibilityValue("\(Int(sliderBrightness))%")
