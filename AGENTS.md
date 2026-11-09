@@ -111,3 +111,7 @@ swift build -c release             # release build
 ## Pull Request Workflow
 - After addressing PR review comments, **always resolve the corresponding review threads** using the GitHub GraphQL API (`resolveReviewThread` mutation)
 - Use the thread IDs from `get_review_comments` to resolve them in bulk
+- After a PR merges, **always rebuild and restart the app locally** so the installed HueBar runs the latest `main`:
+  - Fetch `origin` and make sure the checkout you build from includes the merged `main`
+  - Run `./scripts/install.sh`, which quits the running app, installs the release build to `/Applications`, and reopens it
+  - Confirm the new process is running with `pgrep -x HueBar`
