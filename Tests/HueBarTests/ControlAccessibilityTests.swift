@@ -8,21 +8,25 @@ import Testing
 @MainActor
 struct ControlAccessibilityTests {
     @Test func temperatureExposesValueAndCommitsAdjustments() throws {
+        let locale = Locale(identifier: "en_US")
+        let numberFormat = IntegerFormatStyle<Int>.number.locale(locale)
         let mirek = Value(350)
         var changes: [Int] = []
         try withElements(
             ColorTemperatureSlider(mirek: Binding(get: { mirek.value }, set: { mirek.value = $0 })) {
                 changes.append($0)
-            },
+            }
+            .environment(\.locale, locale),
             expecting: ["Color temperature"]
         ) { elements in
             let slider = try #require(elements.first { $0.accessibilityLabel() == "Color temperature" })
-            #expect(slider.accessibilityValueDescription() == "\(2857.formatted()) kelvin")
+            #expect(slider.accessibilityValueDescription() == "\(2857.formatted(numberFormat)) kelvin")
             #expect(changes.isEmpty)
             #expect(slider.accessibilityPerformIncrement())
             #expect(mirek.value > 350)
             #expect(changes == [mirek.value])
-            #expect(slider.accessibilityValueDescription() == "\(Int(1_000_000.0 / Double(mirek.value)).formatted()) kelvin")
+            let adjustedKelvin = Int(1_000_000.0 / Double(mirek.value))
+            #expect(slider.accessibilityValueDescription() == "\(adjustedKelvin.formatted(numberFormat)) kelvin")
             #expect(slider.accessibilityPerformDecrement())
             #expect(mirek.value == 350)
             #expect(changes.count == 2)
